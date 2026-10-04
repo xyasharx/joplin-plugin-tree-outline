@@ -8,33 +8,28 @@ export interface HeadingNode {
   children: HeadingNode[];
 }
 
-/**
- * Detects RTL scripts: Arabic, Persian, Hebrew, Urdu, Kurdish, Syriac, Thaana (Dhivehi)
- */
 export function isTextRtl(text: string): boolean {
   const rtlRegex = /[\u0590-\u05FF\u0600-\u06FF\u0700-\u074F\u0750-\u077F\u0780-\u07BF\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]/;
   return rtlRegex.test(text);
 }
 
 /**
- * Universal Unicode-compliant Slugifier
- * Works flawlessly with English, Persian, Arabic, Chinese, Japanese, Russian, German, Greek, etc.
+ * Exact implementation of `uslug` matching Joplin's markdown-it-anchor:
+ * Compresses any run of punctuation and whitespace into a single hyphen.
  */
-export function unicodeSlugify(text: string): string {
+export function uslug(text: string): string {
   return text
     .normalize('NFKC')
     .toLowerCase()
-    // Match any Unicode Letter (\p{L}) or Number (\p{N}) or whitespace or hyphen
-    .replace(/[^\p{L}\p{N}\s-]/gu, '')
-    .trim()
-    .replace(/\s+/g, '-');
+    .replace(/[^\p{L}\p{N}]+/gu, '-') // Replace non-alphanumeric with hyphen
+    .replace(/^-+|-+$/g, '');        // Remove leading and trailing hyphens
 }
 
 export function cleanHeadingText(raw: string): string {
   return raw
     .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // [link](url) -> link
-    .replace(/[*_~`==]/g, '')                 // Markdown bold, italic, code, highlights
-    .replace(/<[^>]*>/g, '')                  // Inline HTML tags
+    .replace(/[*_~`==]/g, '')                 // Markdown bold, italic, code
+    .replace(/<[^>]*>/g, '')                  // HTML tags
     .trim();
 }
 
@@ -43,63 +38,72 @@ export function parseHeadings(markdown: string): HeadingNode[] {
   const lines = markdown.split(/\r?\n/);
   const flatNodes: HeadingNode[] = [];
   let inCodeBlock = false;
+  const slugCounts: { [slug: string]: number } = {};
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     const trimmed = line.trim();
 
-    // Toggle fenced code blocks (``` or ~~~)
     if (/^(```|~~~)/.test(trimmed)) {
       inCodeBlock = !inCodeBlock;
       continue;
     }
     if (inCodeBlock) continue;
 
-    // 1. ATX headings: 0-3 leading spaces, 1-6 hashes, space, text
+    // 1. ATX headings
     const atxMatch = line.match(/^\s{0,3}(#{1,6})\s+(.*)$/);
     if (atxMatch) {
       const level = atxMatch[1].length;
       const rawText = atxMatch[2].replace(/\s+#+\s*$/, '').trim();
       const text = cleanHeadingText(rawText);
       if (text) {
+        const baseSlug = uslug(text);
+        let slug = baseSlug;
+        if (slugCounts[baseSlug] !== undefined) {
+          slugCounts[baseSlug]++;
+          slug = `${baseSlug}-${slugCounts[baseSlug]}`;
+        } else {
+          slugCounts[baseSlug] = 0;
+        }
+
         flatNodes.push({
           id: `heading-${i}-${flatNodes.length}`,
           level,
           text,
           rawText,
           line: i,
-          slug: unicodeSlugify(text),
+          slug,
           children: [],
         });
       }
       continue;
     }
 
-    // 2. Setext headings: Line followed by === (H1) or --- (H2)
+    // 2. Setext headings
     if (i > 0 && !lines[i - 1].trim().startsWith('#') && lines[i - 1].trim().length > 0) {
-      if (/^={2,}\s*$/.test(trimmed)) {
+      let level = 0;
+      if (/^={2,}\s*$/.test(trimmed)) level = 1;
+      else if (/^-{2,}\s*$/.test(trimmed)) level = 2;
+
+      if (level > 0) {
         const text = cleanHeadingText(lines[i - 1]);
         if (text) {
+          const baseSlug = uslug(text);
+          let slug = baseSlug;
+          if (slugCounts[baseSlug] !== undefined) {
+            slugCounts[baseSlug]++;
+            slug = `${baseSlug}-${slugCounts[baseSlug]}`;
+          } else {
+            slugCounts[baseSlug] = 0;
+          }
+
           flatNodes.push({
             id: `heading-${i - 1}-${flatNodes.length}`,
-            level: 1,
+            level,
             text,
             rawText: lines[i - 1].trim(),
             line: i - 1,
-            slug: unicodeSlugify(text),
-            children: [],
-          });
-        }
-      } else if (/^-{2,}\s*$/.test(trimmed)) {
-        const text = cleanHeadingText(lines[i - 1]);
-        if (text) {
-          flatNodes.push({
-            id: `heading-${i - 1}-${flatNodes.length}`,
-            level: 2,
-            text,
-            rawText: lines[i - 1].trim(),
-            line: i - 1,
-            slug: unicodeSlugify(text),
+            slug,
             children: [],
           });
         }
