@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+</head>
+<body>
+  <div class="outline-container">
+    <!-- Obsidian Top Action Bar -->
+    <div class="nav-header">
+      <div class="nav-buttons-container">
+        <div class="clickable-icon nav-action-button" id="search-toggle-btn" title="Filter headings">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
+        </div>
+        <div class="clickable-icon nav-action-button" id="collapse-all-btn" title="Collapse / Expand all">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M7 11V7h4"></path>
+            <path d="M11 7L4 14"></path>
+            <path d="M17 13v4h-4"></path>
+            <path d="M13 17l7-7"></path>
+          </svg>
+        </div>
+      </div>
+      <div class="search-input-container" id="search-container">
+        <input type="text" id="search-input" placeholder="Filter headings..." autocomplete="off">
+        <span class="search-clear-btn" id="search-clear-btn">&times;</span>
+      </div>
+    </div>
+
+    <!-- Tree Content View -->
+    <div class="outline-tree" id="outline-tree"></div>
+  </div>
+</body>
+</html>
