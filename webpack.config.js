@@ -4,7 +4,10 @@ const CopyPlugin = require('copy-webpack-plugin');
 const tar = require('tar');
 
 module.exports = (env) => {
-  const config = env && env.joplinPluginConfig ? env.joplinPluginConfig : 'buildMain';
+  const config = env && (env.joplinPluginConfig || env['joplin-plugin-config']) 
+    ? (env.joplinPluginConfig || env['joplin-plugin-config']) 
+    : 'buildMain';
+
   const distDir = path.resolve(__dirname, 'dist');
   const publishDir = path.resolve(__dirname, 'publish');
 
@@ -16,7 +19,12 @@ module.exports = (env) => {
       module: {
         rules: [{ test: /\.tsx?$/, use: 'ts-loader', exclude: /node_modules/ }],
       },
-      resolve: { extensions: ['.tsx', '.ts', '.js'] },
+      resolve: {
+        alias: {
+          api: path.resolve(__dirname, 'api'),
+        },
+        extensions: ['.tsx', '.ts', '.js'],
+      },
       output: { filename: 'index.js', path: distDir },
       plugins: [
         new CopyPlugin({
@@ -42,7 +50,10 @@ module.exports = (env) => {
               const pluginDist = path.resolve(__dirname, 'dist');
               const jplFilePath = path.resolve(publishDir, `${manifest.id}.jpl`);
 
-              await tar.create({ strict: true, portable: true, file: jplFilePath, cwd: pluginDist }, await fs.readdir(pluginDist));
+              await tar.create(
+                { strict: true, portable: true, file: jplFilePath, cwd: pluginDist },
+                await fs.readdir(pluginDist)
+              );
               await fs.copy(path.resolve(__dirname, 'src/manifest.json'), path.resolve(publishDir, 'manifest.json'));
               console.log(`\nCreated Joplin plugin bundle: ${jplFilePath}\n`);
             });
@@ -51,5 +62,11 @@ module.exports = (env) => {
       ],
     };
   }
-  return {};
+
+  // Fallback for buildExtraScripts
+  return {
+    mode: 'production',
+    entry: {},
+    output: { path: distDir },
+  };
 };
