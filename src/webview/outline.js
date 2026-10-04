@@ -25,6 +25,26 @@ function setDirection(isRtl) {
   if (container) container.setAttribute('dir', dir);
 }
 
+/**
+ * International Search Normalizer:
+ * 1. Strips European accents (é -> e, ä -> a)
+ * 2. Removes Persian/Arabic ZWNJ (نیم‌فاصله) & Tashkeel/harakat
+ * 3. Unifies Arabic & Persian variants (ي/ی, ك/ک, ة/ه)
+ */
+function normalizeForSearch(str) {
+  if (!str) return '';
+  return str
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '') // Strip Latin accents
+    .replace(/[\u200B-\u200D\uFEFF]/g, '') // Remove ZWNJ and invisible zero-width spaces
+    .replace(/[\u064B-\u065F\u0670]/g, '') // Strip Arabic/Persian Tashkeel
+    .replace(/[يى]/g, 'ی') // Unify Arabic Yeh to Persian Ye
+    .replace(/[ك]/g, 'ک')  // Unify Arabic Kaf to Persian Keh
+    .replace(/[ة]/g, 'ه')
+    .toLowerCase()
+    .trim();
+}
+
 function countTotalHeadings(nodes) {
   let count = 0;
   for (const n of nodes) {
@@ -59,7 +79,7 @@ function initEventHandlers() {
   if (searchInput && !searchInput.dataset.bound) {
     searchInput.dataset.bound = 'true';
     searchInput.addEventListener('input', () => {
-      const query = searchInput.value.trim().toLowerCase();
+      const query = searchInput.value.trim();
       if (searchClearBtn) searchClearBtn.style.display = query ? 'block' : 'none';
       renderTree(allHeadings, query);
     });
@@ -103,6 +123,7 @@ function createNodeElement(node, searchQuery) {
     self.classList.add('is-active');
   }
 
+  // Chevron Toggle
   const icon = document.createElement('div');
   icon.className = 'collapse-icon';
   if (!node.children || node.children.length === 0) {
@@ -118,17 +139,29 @@ function createNodeElement(node, searchQuery) {
     item.classList.toggle('is-collapsed');
   });
 
-  const inner = document.createElement('div');
+  // BiDi-isolated Text Container (<bdi>)
+  // Prevents mixed Persian/English punctuation flipping
+  const inner = document.createElement('bdi');
   inner.className = 'tree-item-inner';
   inner.title = `${node.text} (H${node.level})`;
 
-  if (searchQuery && node.text.toLowerCase().includes(searchQuery)) {
-    const idx = node.text.toLowerCase().indexOf(searchQuery);
-    inner.innerHTML = `${node.text.slice(0, idx)}<span class="highlight-match">${node.text.slice(idx, idx + searchQuery.length)}</span>${node.text.slice(idx + searchQuery.length)}`;
+  if (searchQuery) {
+    const normText = normalizeForSearch(node.text);
+    const normQuery = normalizeForSearch(searchQuery);
+    const matchIndex = normText.indexOf(normQuery);
+
+    if (matchIndex !== -1) {
+      // Find approximate highlight slice length
+      const matchLength = searchQuery.length;
+      inner.innerHTML = `${node.text.slice(0, matchIndex)}<span class="highlight-match">${node.text.slice(matchIndex, matchIndex + matchLength)}</span>${node.text.slice(matchIndex + matchLength)}`;
+    } else {
+      inner.textContent = node.text;
+    }
   } else {
     inner.textContent = node.text;
   }
 
+  // Jump to Heading
   self.addEventListener('click', () => {
     document.querySelectorAll('.tree-item-self.is-active').forEach((el) => el.classList.remove('is-active'));
     self.classList.add('is-active');
@@ -147,6 +180,7 @@ function createNodeElement(node, searchQuery) {
   self.appendChild(inner);
   item.appendChild(self);
 
+  // Render Sub-branches
   if (node.children && node.children.length > 0) {
     const childrenContainer = document.createElement('div');
     childrenContainer.className = 'tree-item-children';
@@ -177,10 +211,12 @@ function renderTree(headings, query = '') {
     return;
   }
 
+  const normalizedQuery = normalizeForSearch(query);
+
   function filterNodes(nodes) {
     const filtered = [];
     for (const n of nodes) {
-      const match = n.text.toLowerCase().includes(query);
+      const match = normalizeForSearch(n.text).includes(normalizedQuery);
       const childMatches = filterNodes(n.children || []);
       if (match || childMatches.length > 0) {
         filtered.push({ ...n, children: childMatches });
@@ -220,10 +256,10 @@ async function syncOutline(force = false) {
       allHeadings = data.headings || [];
 
       const searchInput = getSearchInput();
-      renderTree(allHeadings, searchInput ? searchInput.value.trim().toLowerCase() : '');
+      renderTree(allHeadings, searchInput ? searchInput.value.trim() : '');
     }
   } catch (err) {
-    // Suppress transient IPC busy errors
+    // Handled transient IPC
   }
 }
 
