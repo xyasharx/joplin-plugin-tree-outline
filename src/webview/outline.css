@@ -1,0 +1,171 @@
+:root {
+  --nav-item-color: var(--joplin-color, #2e3338);
+  --nav-item-background-hover: rgba(125, 125, 125, 0.09);
+  --nav-item-background-active: rgba(125, 125, 125, 0.18);
+  --nav-indent-guide: rgba(125, 125, 125, 0.22);
+  --font-interface: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--joplin-background-color, transparent);
+  color: var(--nav-item-color);
+  font-family: var(--font-interface);
+  font-size: 13px;
+  user-select: none;
+  overflow-x: hidden;
+}
+
+.outline-container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+/* Obsidian Top Actions */
+.nav-header {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--joplin-divider-color, rgba(125, 125, 125, 0.15));
+  flex-shrink: 0;
+}
+
+.nav-buttons-container {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.clickable-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border-radius: 4px;
+  cursor: pointer;
+  color: inherit;
+  opacity: 0.7;
+  transition: opacity 0.12s, background-color 0.12s;
+}
+
+.clickable-icon:hover {
+  opacity: 1;
+  background-color: var(--nav-item-background-hover);
+}
+
+.search-input-container {
+  display: none;
+  position: relative;
+  margin-top: 6px;
+}
+
+.search-input-container.is-visible {
+  display: flex;
+  align-items: center;
+}
+
+.search-input-container input {
+  width: 100%;
+  padding: 4px 22px 4px 8px;
+  font-size: 12px;
+  border: 1px solid var(--joplin-divider-color, rgba(125, 125, 125, 0.3));
+  border-radius: 4px;
+  background: var(--joplin-background-color, #fff);
+  color: inherit;
+  outline: none;
+}
+
+.search-clear-btn {
+  position: absolute;
+  right: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  color: #888;
+  display: none;
+}
+
+/* Tree Structure & Indentation Guidelines */
+.outline-tree {
+  padding: 6px 8px 16px 8px;
+  overflow-y: auto;
+  flex-grow: 1;
+}
+
+.tree-item {
+  position: relative;
+}
+
+.tree-item-self {
+  display: flex;
+  align-items: center;
+  padding: 3px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  line-height: 1.45;
+  transition: background-color 0.1s ease;
+}
+
+.tree-item-self:hover {
+  background-color: var(--nav-item-background-hover);
+}
+
+/* Active Highlight Pill matching screenshot */
+.tree-item-self.is-active {
+  background-color: var(--nav-item-background-active);
+  font-weight: 500;
+}
+
+.collapse-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  margin-inline-end: 4px;
+  flex-shrink: 0;
+  opacity: 0.65;
+  transition: transform 0.15s ease;
+}
+
+.collapse-icon svg {
+  width: 12px;
+  height: 12px;
+}
+
+.tree-item.is-collapsed > .tree-item-self .collapse-icon {
+  transform: rotate(-90deg);
+}
+
+[dir="rtl"] .tree-item.is-collapsed > .tree-item-self .collapse-icon {
+  transform: rotate(90deg);
+}
+
+.collapse-icon.is-hidden {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.tree-item-inner {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex-grow: 1;
+}
+
+/* Obsidian Indent Guideline connecting children */
+.tree-item-children {
+  padding-inline-start: 14px;
+  border-inline-start: 1px solid var(--nav-indent-guide);
+  margin-inline-start: 8px;
+}
+
+.tree-item.is-collapsed > .tree-item-children {
+  display: none;
+}
+
+/* Search match highlights */
+.highlight-match {
+  text-decoration: underline;
+  font-weight: 600;
+}
