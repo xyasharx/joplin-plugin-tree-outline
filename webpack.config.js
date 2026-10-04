@@ -33,6 +33,7 @@ module.exports = () => {
     output: {
       filename: 'index.js',
       path: distDir,
+      globalObject: 'this', // Prevents Webpack from emitting bare 'global' references
     },
     plugins: [
       new CopyPlugin({
