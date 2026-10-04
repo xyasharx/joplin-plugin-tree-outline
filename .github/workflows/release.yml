@@ -1,27 +1,26 @@
-name: Release Joplin Plugin
+name: Build & Release JPL (Testing)
 
 on:
   push:
     tags:
-      - 'v*' # Triggers on v1.0.0, v1.0.1, etc.
-  workflow_dispatch:
+      - 'v*'
+  workflow_dispatch: # Allows clicking "Run workflow" in GitHub UI
 
 permissions:
   contents: write
 
 jobs:
-  build-and-publish:
+  build:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
 
-      - name: Setup Node.js (Latest Supported)
+      - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: 26 # Or use 'lts/*' for automatic latest LTS
-          registry-url: 'https://registry.npmjs.org'
+          node-version: 26 # Stable LTS
 
       - name: Install dependencies
         run: npm install
@@ -29,25 +28,12 @@ jobs:
       - name: Build Joplin plugin (.jpl)
         run: npm run dist
 
-      - name: Verify build outputs
-        run: |
-          ls -la publish/
-          if [ ! -f publish/*.jpl ]; then
-            echo "Error: .jpl file was not generated in publish/ directory!"
-            exit 1
-          fi
-
-      - name: Create GitHub Release
+      # Creates a GitHub Release with your .jpl file attached (No npm needed!)
+      - name: Upload .jpl to GitHub Release
         uses: softprops/action-gh-release@v3
         with:
           files: publish/*.jpl
           generate_release_notes: true
-          draft: false
-          prerelease: false
+          prerelease: true # Marked as testing/pre-release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Publish to npm (Triggers Joplin Crawler)
-        run: npm publish --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
