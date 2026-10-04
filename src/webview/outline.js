@@ -55,4 +55,170 @@ function initEventHandlers() {
 
   if (searchClearBtn && !searchClearBtn.dataset.bound) {
     searchClearBtn.dataset.bound = 'true';
-    searchClearBtn.a
+    searchClearBtn.addEventListener('click', () => {
+      if (searchInput) searchInput.value = '';
+      searchClearBtn.style.display = 'none';
+      renderTree(allHeadings);
+      if (searchInput) searchInput.focus();
+    });
+  }
+
+  if (collapseAllBtn && !collapseAllBtn.dataset.bound) {
+    collapseAllBtn.dataset.bound = 'true';
+    collapseAllBtn.addEventListener('click', () => {
+      isAllCollapsed = !isAllCollapsed;
+      const treeItems = document.querySelectorAll('.tree-item');
+      treeItems.forEach((item) => {
+        if (item.querySelector('.tree-item-children')) {
+          item.classList.toggle('is-collapsed', isAllCollapsed);
+        }
+      });
+    });
+  }
+}
+
+function createNodeElement(node, searchQuery) {
+  const item = document.createElement('div');
+  item.className = 'tree-item';
+  item.id = node.id;
+
+  const self = document.createElement('div');
+  self.className = 'tree-item-self';
+
+  if (activeHeadingId === node.id) {
+    self.classList.add('is-active');
+  }
+
+  const icon = document.createElement('div');
+  icon.className = 'collapse-icon';
+  if (!node.children || node.children.length === 0) {
+    icon.classList.add('is-hidden');
+  }
+  icon.innerHTML = `
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="6 9 12 15 18 9"></polyline>
+    </svg>`;
+
+  icon.addEventListener('click', (e) => {
+    e.stopPropagation();
+    item.classList.toggle('is-collapsed');
+  });
+
+  const inner = document.createElement('div');
+  inner.className = 'tree-item-inner';
+  inner.title = node.text;
+
+  if (searchQuery && node.text.toLowerCase().includes(searchQuery)) {
+    const idx = node.text.toLowerCase().indexOf(searchQuery);
+    inner.innerHTML = `${node.text.slice(0, idx)}<span class="highlight-match">${node.text.slice(idx, idx + searchQuery.length)}</span>${node.text.slice(idx + searchQuery.length)}`;
+  } else {
+    inner.textContent = node.text;
+  }
+
+  self.addEventListener('click', () => {
+    document.querySelectorAll('.tree-item-self.is-active').forEach((el) => el.classList.remove('is-active'));
+    self.classList.add('is-active');
+    activeHeadingId = node.id;
+
+    if (api && api.postMessage) {
+      api.postMessage({
+        type: 'jumpToHeading',
+        line: node.line,
+        slug: node.slug,
+      });
+    }
+  });
+
+  self.appendChild(icon);
+  self.appendChild(inner);
+  item.appendChild(self);
+
+  if (node.children && node.children.length > 0) {
+    const childrenContainer = document.createElement('div');
+    childrenContainer.className = 'tree-item-children';
+    for (const child of node.children) {
+      childrenContainer.appendChild(createNodeElement(child, searchQuery));
+    }
+    item.appendChild(childrenContainer);
+  }
+
+  return item;
+}
+
+function renderTree(headings, query = '') {
+  initEventHandlers();
+  const treeContainer = getTreeContainer();
+  if (!treeContainer) return;
+
+  treeContainer.innerHTML = '';
+
+  if (!headings || headings.length === 0) {
+    treeContainer.innerHTML = '<div class="outline-status">No headings in note</div>';
+    return;
+  }
+
+  function filterNodes(nodes) {
+    const filtered = [];
+    for (const n of nodes) {
+      const match = n.text.toLowerCase().includes(query);
+      const childMatches = filterNodes(n.children || []);
+      if (match || childMatches.length > 0) {
+        filtered.push({ ...n, children: childMatches });
+      }
+    }
+    return filtered;
+  }
+
+  const nodesToRender = query ? filterNodes(headings) : headings;
+  if (nodesToRender.length === 0) {
+    treeContainer.innerHTML = '<div class="outline-status">No matching headings</div>';
+    return;
+  }
+
+  for (const node of nodesToRender) {
+    treeContainer.appendChild(createNodeElement(node, query));
+  }
+}
+
+// 1. Instant Push Updates from Joplin
+if (api && api.onMessage) {
+  api.onMessage((message) => {
+    if (message.type === 'setHeadings') {
+      currentNoteId = message.noteId;
+      setDirection(message.isRtl);
+      allHeadings = message.headings || [];
+      const searchInput = getSearchInput();
+      renderTree(allHeadings, searchInput ? searchInput.value.trim().toLowerCase() : '');
+    }
+  });
+}
+
+// 2. Active Heartbeat Poll
+async function syncWithJoplin(force = false) {
+  if (!api || !api.postMessage) return;
+
+  try {
+    const data = await api.postMessage({
+      type: 'pollNote',
+      force: force,
+    });
+
+    if (data && data.changed) {
+      currentNoteId = data.noteId;
+      setDirection(data.isRtl);
+      allHeadings = data.headings || [];
+      const searchInput = getSearchInput();
+      renderTree(allHeadings, searchInput ? searchInput.value.trim().toLowerCase() : '');
+    }
+  } catch (err) {
+    // Ignore transient IPC busy errors
+  }
+}
+
+// Initial pull on load
+syncWithJoplin(true);
+
+// Heartbeat interval ensures immediate sync if any Joplin selection event was delayed
+setInterval(() => {
+  syncWithJoplin(false);
+}, 500);
