@@ -47,7 +47,6 @@ joplin.plugins.register({
         if (!note || !note.id) return null;
         if (typeof note.body === 'string') return note;
 
-        // Fallback if shallow note is returned
         const fullNote = await joplin.data.get(['notes', note.id], {
           fields: ['id', 'title', 'body'],
         });
@@ -70,4 +69,100 @@ joplin.plugins.register({
               isRtl: false,
               noteId: '',
             });
+          } catch (e) {
+            // Webview not ready yet
           }
+        }
+        return;
+      }
+
+      activeNoteId = note.id;
+      activeNoteBody = note.body || '';
+
+      const headings = parseHeadings(activeNoteBody);
+      const isRtl = isTextRtl((note.title || '') + ' ' + activeNoteBody.slice(0, 1500));
+
+      try {
+        await joplin.views.panels.postMessage(panel, {
+          type: 'setHeadings',
+          headings,
+          isRtl,
+          noteId: note.id,
+        });
+      } catch (err) {
+        // Webview cycling
+      }
+    };
+
+    const handleNoteSwitch = () => {
+      pushOutlineUpdate();
+      setTimeout(pushOutlineUpdate, 80);
+      setTimeout(pushOutlineUpdate, 250);
+      setTimeout(pushOutlineUpdate, 600);
+    };
+
+    await joplin.views.panels.onMessage(panel, async (message: any) => {
+      if (message.type === 'pollNote') {
+        const note = await getNote();
+        if (!note) {
+          const changed = activeNoteId !== '';
+          activeNoteId = '';
+          activeNoteBody = '';
+          return { changed, noteId: '', headings: [], isRtl: false };
+        }
+
+        const body = note.body || '';
+        const changed = message.force || note.id !== activeNoteId || body !== activeNoteBody;
+
+        if (changed) {
+          activeNoteId = note.id;
+          activeNoteBody = body;
+          return {
+            changed: true,
+            noteId: note.id,
+            headings: parseHeadings(body),
+            isRtl: isTextRtl((note.title || '') + ' ' + body.slice(0, 1500)),
+          };
+        }
+
+        return { changed: false };
+      } else if (message.type === 'jumpToHeading') {
+        try {
+          await joplin.commands.execute('editor.execCommand', {
+            name: 'scrollIntoView',
+            args: [{ line: message.line, char: 0 }],
+          });
+          await joplin.commands.execute('editor.execCommand', {
+            name: 'setCursor',
+            args: [{ line: message.line, char: 0 }],
+          });
+        } catch (e) {
+          // Handled if in viewer mode
+        }
+
+        try {
+          await joplin.commands.execute('scrollToHash', message.slug);
+        } catch (e) {
+          // Handled if hash anchor not found
+        }
+      }
+    });
+
+    await joplin.workspace.onNoteSelectionChange(handleNoteSwitch);
+    await joplin.workspace.onNoteChange(pushOutlineUpdate);
+
+    handleNoteSwitch();
+
+    await joplin.commands.register({
+      name: 'toggleTreeOutline',
+      label: 'Toggle TreeOutline',
+      iconName: 'fas fa-stream',
+      execute: async () => {
+        const isVisible = await joplin.views.panels.visible(panel);
+        await joplin.views.panels.show(panel, !isVisible);
+      },
+    });
+
+    await joplin.views.panels.show(panel, true);
+  },
+});
