@@ -14,6 +14,13 @@ function getSearchContainer() {
   return document.getElementById('search-container');
 }
 
+function setDirection(isRtl) {
+  const dir = isRtl ? 'rtl' : 'ltr';
+  document.body.setAttribute('dir', dir);
+  const container = document.getElementById('outline-container');
+  if (container) container.setAttribute('dir', dir);
+}
+
 function initEventHandlers() {
   const searchToggleBtn = document.getElementById('search-toggle-btn');
   const searchContainer = getSearchContainer();
@@ -74,7 +81,6 @@ function createNodeElement(node, searchQuery) {
 
   const self = document.createElement('div');
   self.className = 'tree-item-self';
-  self.dir = 'auto'; // Auto-detects RTL for Persian / Hebrew / Arabic
 
   if (activeHeadingId === node.id) {
     self.classList.add('is-active');
@@ -169,10 +175,11 @@ function renderTree(headings, query = '') {
   }
 }
 
-// 1. Push listener: receives updates from note edits and switches
+// 1. Receive note updates pushed from Joplin
 if (window.webviewApi && window.webviewApi.onMessage) {
   window.webviewApi.onMessage((message) => {
     if (message.type === 'setHeadings') {
+      setDirection(message.isRtl);
       allHeadings = message.headings || [];
       const searchInput = getSearchInput();
       renderTree(allHeadings, searchInput ? searchInput.value.trim().toLowerCase() : '');
@@ -180,14 +187,15 @@ if (window.webviewApi && window.webviewApi.onMessage) {
   });
 }
 
-// 2. Active Pull: requests headings immediately upon panel load
+// 2. Initial fetch on load
 async function fetchHeadings() {
   initEventHandlers();
   if (window.webviewApi && window.webviewApi.postMessage) {
     try {
       const response = await window.webviewApi.postMessage({ type: 'getHeadings' });
-      if (response && response.headings) {
-        allHeadings = response.headings;
+      if (response) {
+        setDirection(response.isRtl);
+        allHeadings = response.headings || [];
         renderTree(allHeadings);
       }
     } catch (e) {
