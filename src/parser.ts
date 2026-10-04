@@ -8,6 +8,12 @@ export interface HeadingNode {
   children: HeadingNode[];
 }
 
+export function isTextRtl(text: string): boolean {
+  // Matches Hebrew, Arabic, Persian, Kurdish, and Urdu Unicode blocks
+  const rtlRegex = /[\u0590-\u05FF\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]/;
+  return rtlRegex.test(text);
+}
+
 export function parseHeadings(markdown: string): HeadingNode[] {
   if (!markdown) return [];
   const lines = markdown.split(/\r?\n/);
@@ -23,7 +29,7 @@ export function parseHeadings(markdown: string): HeadingNode[] {
   const cleanHeadingText = (raw: string) => {
     return raw
       .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // [link](url) -> link
-      .replace(/[*_~`]/g, '')                 // Markdown bold, italic, code
+      .replace(/[*_~`]/g, '')                 // Markdown styles
       .trim();
   };
 
@@ -38,12 +44,11 @@ export function parseHeadings(markdown: string): HeadingNode[] {
     }
     if (inCodeBlock) continue;
 
-    // 1. ATX headings: 0-3 leading spaces, 1-6 hashes, space, content
+    // 1. ATX headings: 0-3 leading spaces, 1-6 hashes, space, text
     const atxMatch = line.match(/^\s{0,3}(#{1,6})\s+(.*)$/);
     if (atxMatch) {
       const level = atxMatch[1].length;
-      // Strip trailing closing hashes (e.g. "## Heading ##")
-      const rawText = atxMatch[2].replace(/\s+#+\s*$/, '').trim();
+      const rawText = atxMatch[2].replace(/\s+#+\s*$/, '').trim(); // Remove trailing '#'
       const text = cleanHeadingText(rawText);
       if (text) {
         flatNodes.push({
@@ -59,7 +64,7 @@ export function parseHeadings(markdown: string): HeadingNode[] {
       continue;
     }
 
-    // 2. Setext headings: Text followed by line of === (H1) or --- (H2)
+    // 2. Setext headings: Line followed by === (H1) or --- (H2)
     if (i > 0 && !lines[i - 1].trim().startsWith('#') && lines[i - 1].trim().length > 0) {
       if (/^={2,}\s*$/.test(trimmed)) {
         const text = cleanHeadingText(lines[i - 1]);
@@ -91,7 +96,7 @@ export function parseHeadings(markdown: string): HeadingNode[] {
     }
   }
 
-  // Build recursive tree
+  // Construct recursive tree
   const rootNodes: HeadingNode[] = [];
   const stack: HeadingNode[] = [];
 
