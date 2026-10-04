@@ -3,11 +3,11 @@ name: Release Joplin Plugin
 on:
   push:
     tags:
-      - 'v*' # Triggers whenever you push a tag like v1.0.0, v1.0.1
-  workflow_dispatch: # Allows you to manually trigger the release from the GitHub UI
+      - 'v*' # Triggers on v1.0.0, v1.0.1, etc.
+  workflow_dispatch:
 
 permissions:
-  contents: write # Required to create GitHub releases and upload the .jpl file
+  contents: write
 
 jobs:
   build-and-publish:
@@ -15,12 +15,12 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Setup Node.js (Latest Supported)
+        uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version: 26 # Or use 'lts/*' for automatic latest LTS
           registry-url: 'https://registry.npmjs.org'
 
       - name: Install dependencies
@@ -47,7 +47,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Publish to npm (Triggers Joplin's Official Crawler)
+      - name: Publish to npm (Triggers Joplin Crawler)
         run: npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
