@@ -9,6 +9,7 @@ export interface HeadingNode {
 }
 
 export function parseHeadings(markdown: string): HeadingNode[] {
+  if (!markdown) return [];
   const lines = markdown.split(/\r?\n/);
   const flatNodes: HeadingNode[] = [];
   let inCodeBlock = false;
@@ -22,33 +23,71 @@ export function parseHeadings(markdown: string): HeadingNode[] {
   const cleanHeadingText = (raw: string) => {
     return raw
       .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // [link](url) -> link
-      .replace(/[*_~`]/g, '')                 // Markdown styles
+      .replace(/[*_~`]/g, '')                 // Markdown bold, italic, code
       .trim();
   };
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
+    const trimmed = line.trim();
 
-    if (/^(```|~~~)/.test(line.trim())) {
+    // Skip fenced code blocks (``` or ~~~)
+    if (/^(```|~~~)/.test(trimmed)) {
       inCodeBlock = !inCodeBlock;
       continue;
     }
     if (inCodeBlock) continue;
 
-    const match = line.match(/^(#{1,6})\s+(.*)$/);
-    if (match) {
-      const level = match[1].length;
-      const rawText = match[2].trim();
+    // 1. ATX headings: 0-3 leading spaces, 1-6 hashes, space, content
+    const atxMatch = line.match(/^\s{0,3}(#{1,6})\s+(.*)$/);
+    if (atxMatch) {
+      const level = atxMatch[1].length;
+      // Strip trailing closing hashes (e.g. "## Heading ##")
+      const rawText = atxMatch[2].replace(/\s+#+\s*$/, '').trim();
       const text = cleanHeadingText(rawText);
-      flatNodes.push({
-        id: `heading-${i}-${flatNodes.length}`,
-        level,
-        text,
-        rawText,
-        line: i,
-        slug: slugify(text),
-        children: [],
-      });
+      if (text) {
+        flatNodes.push({
+          id: `heading-${i}-${flatNodes.length}`,
+          level,
+          text,
+          rawText,
+          line: i,
+          slug: slugify(text),
+          children: [],
+        });
+      }
+      continue;
+    }
+
+    // 2. Setext headings: Text followed by line of === (H1) or --- (H2)
+    if (i > 0 && !lines[i - 1].trim().startsWith('#') && lines[i - 1].trim().length > 0) {
+      if (/^={2,}\s*$/.test(trimmed)) {
+        const text = cleanHeadingText(lines[i - 1]);
+        if (text) {
+          flatNodes.push({
+            id: `heading-${i - 1}-${flatNodes.length}`,
+            level: 1,
+            text,
+            rawText: lines[i - 1].trim(),
+            line: i - 1,
+            slug: slugify(text),
+            children: [],
+          });
+        }
+      } else if (/^-{2,}\s*$/.test(trimmed)) {
+        const text = cleanHeadingText(lines[i - 1]);
+        if (text) {
+          flatNodes.push({
+            id: `heading-${i - 1}-${flatNodes.length}`,
+            level: 2,
+            text,
+            rawText: lines[i - 1].trim(),
+            line: i - 1,
+            slug: slugify(text),
+            children: [],
+          });
+        }
+      }
     }
   }
 
