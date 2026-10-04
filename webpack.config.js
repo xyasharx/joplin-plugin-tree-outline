@@ -9,7 +9,7 @@ module.exports = () => {
 
   return {
     mode: 'production',
-    target: 'node', // Enforces Node.js environment so 'path' and 'fs' resolve natively
+    target: 'node',
     entry: './src/index.ts',
     resolve: {
       alias: {
@@ -21,7 +21,11 @@ module.exports = () => {
       rules: [
         {
           test: /\.tsx?$/,
-          use: 'ts-loader',
+          loader: 'esbuild-loader',
+          options: {
+            target: 'es2020',
+            tsconfigRaw: require('./tsconfig.json'),
+          },
           exclude: /node_modules/,
         },
       ],
@@ -31,7 +35,6 @@ module.exports = () => {
       path: distDir,
     },
     plugins: [
-      // 1. Copy webview assets and manifest to dist/
       new CopyPlugin({
         patterns: [
           {
@@ -43,7 +46,6 @@ module.exports = () => {
           { from: 'src/manifest.json', to: distDir },
         ],
       }),
-      // 2. Automatically package dist/ into publish/<id>.jpl
       {
         apply: (compiler) => {
           compiler.hooks.afterEmit.tapPromise('CreatePluginArchive', async () => {
