@@ -19,6 +19,12 @@ const panelHtml = `
           <path d="M13 17l7-7"></path>
         </svg>
       </div>
+      <div class="clickable-icon nav-action-button mobile-only-btn" id="close-panel-btn" title="Close Outline">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+      </div>
     </div>
     <div class="search-input-container" id="search-container">
       <input type="text" id="search-input" placeholder="Filter headings..." autocomplete="off">
@@ -38,6 +44,13 @@ joplin.plugins.register({
     await joplin.views.panels.addScript(panel, './webview/outline.css');
     await joplin.views.panels.addScript(panel, './webview/outline.js');
 
+    // Check platform (desktop vs mobile)
+    let isMobile = false;
+    try {
+      const vInfo = await joplin.versionInfo();
+      isMobile = (vInfo as any)?.platform === 'mobile';
+    } catch (e) {}
+
     const getSelectedNoteData = async () => {
       try {
         const note = await joplin.workspace.selectedNote();
@@ -46,7 +59,6 @@ joplin.plugins.register({
         let body = typeof note.body === 'string' ? note.body : '';
         let title = typeof note.title === 'string' ? note.title : '';
 
-        // If body is missing in shallow object, retrieve via database
         if (!body) {
           try {
             const fullNote = await joplin.data.get(['notes', note.id], {
@@ -68,22 +80,18 @@ joplin.plugins.register({
     const notifyWebviewToSync = async () => {
       try {
         await joplin.views.panels.postMessage(panel, { type: 'noteSwitched' });
-      } catch (e) {
-        // Handled by polling heartbeat
-      }
+      } catch (e) {}
     };
 
-    // Respond to webview sync requests and navigation commands
     await joplin.views.panels.onMessage(panel, async (message: any) => {
       if (message.type === 'pollNote') {
         const note = await getSelectedNoteData();
 
         if (!note) {
           const changed = message.clientNoteId !== '';
-          return { changed, noteId: '', headings: [], isRtl: false };
+          return { changed, noteId: '', headings: [], isRtl: false, isMobile };
         }
 
-        // Compare against what the webview client is ACTUALLY rendering
         const idChanged = note.id !== message.clientNoteId;
         const lengthChanged = note.body.length !== message.clientBodyLength;
         const changed = message.force || idChanged || lengthChanged;
@@ -95,11 +103,17 @@ joplin.plugins.register({
             bodyLength: note.body.length,
             headings: parseHeadings(note.body),
             isRtl: isTextRtl(note.title + ' ' + note.body.slice(0, 1500)),
+            isMobile,
           };
         }
 
         return { changed: false };
+      } else if (message.type === 'closePanel') {
+        try {
+          await joplin.views.panels.hide(panel);
+        } catch (e) {}
       } else if (message.type === 'jumpToHeading') {
+        // 1. Scroll CodeMirror Editor
         try {
           await joplin.commands.execute('editor.execCommand', {
             name: 'scrollIntoView',
@@ -111,20 +125,25 @@ joplin.plugins.register({
           });
         } catch (e) {}
 
+        // 2. Scroll Markdown Rendered Preview
         try {
           await joplin.commands.execute('scrollToHash', message.slug);
         } catch (e) {}
+
+        // 3. On mobile: automatically dismiss dialog after jumping to section
+        if (isMobile) {
+          try {
+            await joplin.views.panels.hide(panel);
+          } catch (e) {}
+        }
       }
     });
 
-    // Notify webview on workspace events
     await joplin.workspace.onNoteSelectionChange(notifyWebviewToSync);
     await joplin.workspace.onNoteChange(notifyWebviewToSync);
 
-    // Initial trigger
     notifyWebviewToSync();
 
-    // Toggle command
     await joplin.commands.register({
       name: 'toggleTreeOutline',
       label: 'Toggle TreeOutline',
