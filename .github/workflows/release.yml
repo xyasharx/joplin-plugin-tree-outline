@@ -2,11 +2,9 @@ name: Build & Release JPL
 
 on:
   push:
-    branches:
-      - main # Builds when you push to main
     tags:
-      - 'v*' # Builds when you push a tag like v1.0.0
-  workflow_dispatch: # Allows manual button click in GitHub UI
+      - 'v*' # ONLY runs automatically when you push a tag (e.g. v1.0.0, v1.0.1)
+  workflow_dispatch: # Allows you to manually click "Run workflow" in GitHub whenever you want
     inputs:
       custom_tag:
         description: 'Tag name (leave empty to use version from package.json)'
@@ -49,14 +47,12 @@ jobs:
           echo "tag=$TAG" >> $GITHUB_OUTPUT
           echo "Using release tag: $TAG"
 
-      # 1. Upload as downloadable artifact in the GitHub Actions summary tab
       - name: Upload .jpl Artifact
         uses: actions/upload-artifact@v7
         with:
           name: joplin-plugin
           path: publish/*.jpl
 
-      # 2. Create or update GitHub Release with the tag
       - name: Upload .jpl to GitHub Release
         uses: softprops/action-gh-release@v3
         with:
