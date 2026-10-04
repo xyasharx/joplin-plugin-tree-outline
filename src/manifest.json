@@ -1,0 +1,12 @@
+{
+  "manifest_version": 1,
+  "id": "com.yourname.obsidianoutline",
+  "app_min_version": "2.8.0",
+  "version": "1.0.0",
+  "name": "Obsidian Outline",
+  "description": "Obsidian-style hierarchical outline panel with indent guidelines, collapsible sections, and heading search.",
+  "author": "Your Name",
+  "homepage_url": "https://github.com/your-username/joplin-plugin-obsidian-outline",
+  "repository_url": "https://github.com/your-username/joplin-plugin-obsidian-outline",
+  "keywords": ["outline", "toc", "obsidian", "headings"]
+}
