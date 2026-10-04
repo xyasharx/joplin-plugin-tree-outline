@@ -29,7 +29,7 @@ joplin.plugins.register({
     await joplin.workspace.onNoteChange(updateOutline);
 
     // Handle messages from Webview
-    await joplin.views.panels.onMessage(panel, async (message) => {
+    await joplin.views.panels.onMessage(panel, async (message: any) => {
       if (message.type === 'jumpToHeading') {
         // 1. Scroll CodeMirror Editor to line
         try {
