@@ -1,7 +1,7 @@
 {
   "name": "joplin-plugin-tree-outline",
   "version": "1.0.0",
-  "description": "An Obsidian-like hierarchical outline panel for Joplin.",
+  "description": "Hierarchical table of contents and outline panel for Joplin.",
   "main": "dist/index.js",
   "scripts": {
     "dist": "webpack",
@@ -10,7 +10,10 @@
   "keywords": [
     "joplin-plugin",
     "outline",
-    "toc"
+    "toc",
+    "table-of-contents",
+    "tree",
+    "navigation"
   ],
   "files": [
     "publish"
