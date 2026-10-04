@@ -38,120 +38,36 @@ joplin.plugins.register({
     await joplin.views.panels.addScript(panel, './webview/outline.css');
     await joplin.views.panels.addScript(panel, './webview/outline.js');
 
-    let currentNoteId = '';
-    let lastNoteBody = '';
+    let activeNoteId = '';
+    let activeNoteBody = '';
 
-    const getFreshNoteData = async () => {
+    const getNote = async () => {
       try {
-        const selected = await joplin.workspace.selectedNote();
-        if (!selected || !selected.id) return null;
+        const note = await joplin.workspace.selectedNote();
+        if (!note || !note.id) return null;
+        if (typeof note.body === 'string') return note;
 
-        // Fetch fresh note body directly from database
-        const note = await joplin.data.get(['notes', selected.id], {
+        // Fallback if shallow note is returned
+        const fullNote = await joplin.data.get(['notes', note.id], {
           fields: ['id', 'title', 'body'],
         });
-        return note || null;
-      } catch (err) {
+        return fullNote || note;
+      } catch (e) {
         return null;
       }
     };
 
-    const updateOutline = async (force = false) => {
-      const note = await getFreshNoteData();
+    const pushOutlineUpdate = async () => {
+      const note = await getNote();
       if (!note) {
-        if (currentNoteId !== '') {
-          currentNoteId = '';
-          lastNoteBody = '';
-          await joplin.views.panels.postMessage(panel, {
-            type: 'setHeadings',
-            headings: [],
-            isRtl: false,
-            noteId: '',
-          });
-        }
-        return;
-      }
-
-      const body = note.body || '';
-      if (!force && note.id === currentNoteId && body === lastNoteBody) {
-        return;
-      }
-
-      currentNoteId = note.id;
-      lastNoteBody = body;
-
-      const headings = parseHeadings(body);
-      const isRtl = isTextRtl((note.title || '') + ' ' + body.slice(0, 1500));
-
-      await joplin.views.panels.postMessage(panel, {
-        type: 'setHeadings',
-        headings,
-        isRtl,
-        noteId: note.id,
-      });
-    };
-
-    // Webview message listener
-    await joplin.views.panels.onMessage(panel, async (message: any) => {
-      if (message.type === 'getHeadings') {
-        const note = await getFreshNoteData();
-        if (!note) return { headings: [], isRtl: false };
-        currentNoteId = note.id;
-        lastNoteBody = note.body || '';
-        return {
-          headings: parseHeadings(note.body || ''),
-          isRtl: isTextRtl((note.title || '') + ' ' + (note.body || '').slice(0, 1500)),
-        };
-      } else if (message.type === 'jumpToHeading') {
-        try {
-          await joplin.commands.execute('editor.execCommand', {
-            name: 'scrollIntoView',
-            args: [{ line: message.line, char: 0 }],
-          });
-          await joplin.commands.execute('editor.execCommand', {
-            name: 'setCursor',
-            args: [{ line: message.line, char: 0 }],
-          });
-        } catch (e) {}
-
-        try {
-          await joplin.commands.execute('scrollToHash', message.slug);
-        } catch (e) {}
-      }
-    });
-
-    // Listen to selection changes and edits
-    await joplin.workspace.onNoteSelectionChange(async () => {
-      await updateOutline(true);
-    });
-
-    await joplin.workspace.onNoteChange(async () => {
-      await updateOutline(false);
-    });
-
-    // Safety watchdog: catches note switches if Joplin's event drops during rapid clicking
-    setInterval(async () => {
-      const selected = await joplin.workspace.selectedNote();
-      if (selected && selected.id !== currentNoteId) {
-        await updateOutline(true);
-      }
-    }, 1200);
-
-    // Initial triggers
-    setTimeout(() => updateOutline(true), 250);
-    setTimeout(() => updateOutline(true), 1000);
-
-    // Command to toggle the panel
-    await joplin.commands.register({
-      name: 'toggleTreeOutline',
-      label: 'Toggle TreeOutline',
-      iconName: 'fas fa-stream',
-      execute: async () => {
-        const isVisible = await joplin.views.panels.visible(panel);
-        await joplin.views.panels.show(panel, !isVisible);
-      },
-    });
-
-    await joplin.views.panels.show(panel, true);
-  },
-});
+        if (activeNoteId !== '') {
+          activeNoteId = '';
+          activeNoteBody = '';
+          try {
+            await joplin.views.panels.postMessage(panel, {
+              type: 'setHeadings',
+              headings: [],
+              isRtl: false,
+              noteId: '',
+            });
+          }
