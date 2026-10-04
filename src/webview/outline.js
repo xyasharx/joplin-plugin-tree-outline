@@ -4,55 +4,70 @@ let allHeadings = [];
 let isAllCollapsed = false;
 let activeHeadingId = null;
 
-const treeContainer = document.getElementById('outline-tree');
-const searchToggleBtn = document.getElementById('search-toggle-btn');
-const searchContainer = document.getElementById('search-container');
-const searchInput = document.getElementById('search-input');
-const searchClearBtn = document.getElementById('search-clear-btn');
-const collapseAllBtn = document.getElementById('collapse-all-btn');
-
-if (searchToggleBtn) {
-  searchToggleBtn.addEventListener('click', () => {
-    searchContainer.classList.toggle('is-visible');
-    if (searchContainer.classList.contains('is-visible')) {
-      searchInput.focus();
-    } else {
-      searchInput.value = '';
-      renderTree(allHeadings);
-    }
-  });
+function getTreeContainer() {
+  return document.getElementById('outline-tree');
+}
+function getSearchInput() {
+  return document.getElementById('search-input');
+}
+function getSearchContainer() {
+  return document.getElementById('search-container');
 }
 
-if (searchInput) {
-  searchInput.addEventListener('input', () => {
-    const query = searchInput.value.trim().toLowerCase();
-    searchClearBtn.style.display = query ? 'block' : 'none';
-    renderTree(allHeadings, query);
-  });
-}
+function initEventHandlers() {
+  const searchToggleBtn = document.getElementById('search-toggle-btn');
+  const searchContainer = getSearchContainer();
+  const searchInput = getSearchInput();
+  const searchClearBtn = document.getElementById('search-clear-btn');
+  const collapseAllBtn = document.getElementById('collapse-all-btn');
 
-if (searchClearBtn) {
-  searchClearBtn.addEventListener('click', () => {
-    searchInput.value = '';
-    searchClearBtn.style.display = 'none';
-    renderTree(allHeadings);
-    searchInput.focus();
-  });
-}
-
-if (collapseAllBtn) {
-  collapseAllBtn.addEventListener('click', () => {
-    isAllCollapsed = !isAllCollapsed;
-    const treeItems = document.querySelectorAll('.tree-item');
-    treeItems.forEach((item) => {
-      if (item.querySelector('.tree-item-children')) {
-        item.classList.toggle('is-collapsed', isAllCollapsed);
+  if (searchToggleBtn && !searchToggleBtn.dataset.bound) {
+    searchToggleBtn.dataset.bound = 'true';
+    searchToggleBtn.addEventListener('click', () => {
+      searchContainer.classList.toggle('is-visible');
+      if (searchContainer.classList.contains('is-visible')) {
+        searchInput.focus();
+      } else {
+        searchInput.value = '';
+        renderTree(allHeadings);
       }
     });
-  });
+  }
+
+  if (searchInput && !searchInput.dataset.bound) {
+    searchInput.dataset.bound = 'true';
+    searchInput.addEventListener('input', () => {
+      const query = searchInput.value.trim().toLowerCase();
+      if (searchClearBtn) searchClearBtn.style.display = query ? 'block' : 'none';
+      renderTree(allHeadings, query);
+    });
+  }
+
+  if (searchClearBtn && !searchClearBtn.dataset.bound) {
+    searchClearBtn.dataset.bound = 'true';
+    searchClearBtn.addEventListener('click', () => {
+      if (searchInput) searchInput.value = '';
+      searchClearBtn.style.display = 'none';
+      renderTree(allHeadings);
+      if (searchInput) searchInput.focus();
+    });
+  }
+
+  if (collapseAllBtn && !collapseAllBtn.dataset.bound) {
+    collapseAllBtn.dataset.bound = 'true';
+    collapseAllBtn.addEventListener('click', () => {
+      isAllCollapsed = !isAllCollapsed;
+      const treeItems = document.querySelectorAll('.tree-item');
+      treeItems.forEach((item) => {
+        if (item.querySelector('.tree-item-children')) {
+          item.classList.toggle('is-collapsed', isAllCollapsed);
+        }
+      });
+    });
+  }
 }
 
-function createNodeElement(node, searchQuery = '') {
+function createNodeElement(node, searchQuery) {
   const item = document.createElement('div');
   item.className = 'tree-item';
   item.id = node.id;
@@ -120,7 +135,10 @@ function createNodeElement(node, searchQuery = '') {
 }
 
 function renderTree(headings, query = '') {
+  initEventHandlers();
+  const treeContainer = getTreeContainer();
   if (!treeContainer) return;
+
   treeContainer.innerHTML = '';
 
   if (!headings || headings.length === 0) {
@@ -151,13 +169,35 @@ function renderTree(headings, query = '') {
   }
 }
 
-// Receive messages from Joplin
-webviewApi.onMessage((message) => {
-  if (message.type === 'setHeadings') {
-    allHeadings = message.headings;
-    renderTree(allHeadings, searchInput ? searchInput.value.trim().toLowerCase() : '');
-  }
-});
+// 1. Push listener: receives updates from note edits and switches
+if (window.webviewApi && window.webviewApi.onMessage) {
+  window.webviewApi.onMessage((message) => {
+    if (message.type === 'setHeadings') {
+      allHeadings = message.headings || [];
+      const searchInput = getSearchInput();
+      renderTree(allHeadings, searchInput ? searchInput.value.trim().toLowerCase() : '');
+    }
+  });
+}
 
-// Notify Joplin main process that this panel is ready to receive headings
-webviewApi.postMessage({ type: 'ready' });
+// 2. Active Pull: requests headings immediately upon panel load
+async function fetchHeadings() {
+  initEventHandlers();
+  if (window.webviewApi && window.webviewApi.postMessage) {
+    try {
+      const response = await window.webviewApi.postMessage({ type: 'getHeadings' });
+      if (response && response.headings) {
+        allHeadings = response.headings;
+        renderTree(allHeadings);
+      }
+    } catch (e) {
+      console.error('[TreeOutline] fetchHeadings error:', e);
+    }
+  }
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', fetchHeadings);
+} else {
+  fetchHeadings();
+}
