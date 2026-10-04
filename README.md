@@ -1,46 +1,48 @@
 # TreeOutline for Joplin
 
-An Obsidian-inspired hierarchical outline and Table of Contents (TOC) panel for [Joplin](https://joplinapp.org/).
-
-Designed to bring the clean, minimalist aesthetic and fluid navigation of Obsidian's Outline pane directly into Joplin, complete with collapsible branches, vertical indentation guidelines, live heading filtering, and bidirectional RTL/LTR support.
+TreeOutline is an outline and table of contents panel for Joplin desktop and mobile. It parses note headings into a nested tree with collapsible branches, indentation guides, and live filtering.
 
 ---
 
-## ✨ Features
+## Features
 
-- 🌿 **Obsidian Tree Design:** Clean hierarchy displaying H1–H6 with vertical indentation guide lines.
-- ⮛ **Collapsible Headings:** Clickable chevrons to fold or expand subheadings.
-- 🗂️ **Global Collapse / Expand:** Toggle all sections with one click from the top toolbar.
-- 🔍 **Live Heading Search:** Instant filter bar to quickly locate sections in long documents.
-- 📍 **Active Heading Indicator:** Automatically highlights the active heading pill corresponding to your reading or cursor location.
-- 🌐 **Full RTL & LTR Support:** Built with CSS logical properties, rendering Persian, Arabic, Hebrew, and English heading trees smoothly.
-- ⚡ **Dual-Mode Navigation:** Synchronously jumps both the CodeMirror Markdown editor and rendered HTML preview pane.
-
----
-
-## 📸 Preview
-
-<!-- Replace with your actual screenshot link in GitHub -->
-![TreeOutline Screenshot](https://raw.githubusercontent.com/your-username/joplin-plugin-tree-outline/main/screenshot.png)
+- **Nested Tree Navigation:** Displays document structure from H1 through H6 with visual indent guides.
+- **Collapsible Sections:** Fold or unfold sub-branches individually, or toggle the entire outline at once from the toolbar.
+- **Live Search:** Filter headings in long notes with instant keyboard search.
+- **Bi-directional Layout (RTL & LTR):** Automatically detects script direction per note. Right-to-left scripts (Persian, Arabic, Hebrew) display with guidelines, chevrons, and text correctly mirrored.
+- **Editor & Viewer Sync:** Clicking any heading jumps to that line in the Markdown editor and scrolls to the anchor in the rendered preview.
+- **Mobile Support:** Runs on Joplin for Android and iOS with touch-optimized targets and auto-dismiss on jump.
+- **Lightweight:** Built without runtime frameworks or background processes.
 
 ---
 
-## 🚀 Installation
+## Installation
 
-### Method 1: Via Joplin App (Recommended once listed)
-1. Open Joplin and navigate to **Tools > Options > Plugins** (Windows/Linux) or **Joplin > Preferences > Plugins** (macOS).
-2. Search for `TreeOutline` or `Obsidian Outline`.
+### From Joplin (Recommended)
+1. Open Joplin and go to **Tools > Options > Plugins** (macOS: **Joplin > Preferences > Plugins**).
+2. Search for `TreeOutline`.
 3. Click **Install** and restart Joplin.
 
-### Method 2: Manual Installation (.jpl file)
-1. Download the latest `.jpl` release from the [Releases](https://github.com/your-username/joplin-plugin-tree-outline/releases) page.
+### Manual Installation
+1. Download the latest `com.yourname.treeoutline.jpl` file from the [Releases](https://github.com/your-username/joplin-plugin-tree-outline/releases) page.
 2. In Joplin, go to **Tools > Options > Plugins**.
-3. Click the gear icon (`⚙`) next to **Manage your plugins** and select **Install from file**.
-4. Select the downloaded `.jpl` file and restart Joplin.
+3. Click the gear icon (`⚙`) next to *Manage your plugins* and choose **Install from file**.
+4. Select the `.jpl` file and restart Joplin.
 
 ---
 
-## 🛠️ Development & Building
+## Usage
+
+- **Toggle Panel:** Toggle the outline view via **Tools > TreeOutline** or assign a custom shortcut under **Tools > Options > Keyboard Shortcuts**.
+- **Rearrange Layout:** On desktop, use **View > Change application layout** to drag and dock the TreeOutline panel to the left sidebar, right sidebar, or alongside the note list.
+- **Search Headings:** Click the magnifying glass icon in the header to filter headings. Press `Escape` or clear the input to restore the full view.
+- **Collapse All:** Click the fold icon in the toolbar to collapse or expand all subheadings simultaneously.
+
+---
+
+## Building from Source
+
+Requirements: Node.js (v20+) and npm.
 
 ```bash
 # Clone the repository
@@ -50,14 +52,5 @@ cd joplin-plugin-tree-outline
 # Install dependencies
 npm install
 
-# Build production bundle (.jpl archive)
+# Build the plugin archive
 npm run dist
-```
-
-The compiled plugin will be generated at `publish/com.yourname.treeoutline.jpl`.
-
----
-
-## 📄 License
-
-This project is licensed under the [MIT License](LICENSE).
