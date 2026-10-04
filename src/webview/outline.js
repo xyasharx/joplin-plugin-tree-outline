@@ -25,6 +25,17 @@ function setDirection(isRtl) {
   if (container) container.setAttribute('dir', dir);
 }
 
+function countTotalHeadings(nodes) {
+  let count = 0;
+  for (const n of nodes) {
+    count += 1;
+    if (n.children && n.children.length > 0) {
+      count += countTotalHeadings(n.children);
+    }
+  }
+  return count;
+}
+
 function initEventHandlers() {
   const searchToggleBtn = document.getElementById('search-toggle-btn');
   const searchContainer = getSearchContainer();
@@ -82,9 +93,11 @@ function createNodeElement(node, searchQuery) {
   const item = document.createElement('div');
   item.className = 'tree-item';
   item.id = node.id;
+  item.setAttribute('data-level', node.level);
 
   const self = document.createElement('div');
   self.className = 'tree-item-self';
+  self.setAttribute('data-level', node.level);
 
   if (activeHeadingId === node.id) {
     self.classList.add('is-active');
@@ -107,7 +120,7 @@ function createNodeElement(node, searchQuery) {
 
   const inner = document.createElement('div');
   inner.className = 'tree-item-inner';
-  inner.title = node.text;
+  inner.title = `${node.text} (H${node.level})`;
 
   if (searchQuery && node.text.toLowerCase().includes(searchQuery)) {
     const idx = node.text.toLowerCase().indexOf(searchQuery);
@@ -149,12 +162,18 @@ function createNodeElement(node, searchQuery) {
 function renderTree(headings, query = '') {
   initEventHandlers();
   const treeContainer = getTreeContainer();
+  const searchInput = getSearchInput();
   if (!treeContainer) return;
 
   treeContainer.innerHTML = '';
 
+  const totalCount = countTotalHeadings(headings || []);
+  if (searchInput && !query) {
+    searchInput.placeholder = totalCount > 0 ? `Filter ${totalCount} headings...` : 'Filter headings...';
+  }
+
   if (!headings || headings.length === 0) {
-    treeContainer.innerHTML = '<div class="outline-status">No headings in note</div>';
+    treeContainer.innerHTML = '<div class="outline-status">No headings found in this note</div>';
     return;
   }
 
@@ -172,7 +191,7 @@ function renderTree(headings, query = '') {
 
   const nodesToRender = query ? filterNodes(headings) : headings;
   if (nodesToRender.length === 0) {
-    treeContainer.innerHTML = '<div class="outline-status">No matching headings</div>';
+    treeContainer.innerHTML = '<div class="outline-status">No matching headings found</div>';
     return;
   }
 
@@ -181,7 +200,6 @@ function renderTree(headings, query = '') {
   }
 }
 
-// Actively asks Joplin: "I am showing note X, has the user switched?"
 async function syncOutline(force = false) {
   if (!api || !api.postMessage) return;
 
@@ -209,7 +227,6 @@ async function syncOutline(force = false) {
   }
 }
 
-// 1. Immediate trigger when Joplin notifies a switch
 if (api && api.onMessage) {
   api.onMessage((msg) => {
     if (msg.type === 'noteSwitched') {
@@ -218,10 +235,8 @@ if (api && api.onMessage) {
   });
 }
 
-// 2. Initial fetch on load
 syncOutline(true);
 
-// 3. Heartbeat check every 350ms ensures guaranteed note switching
 setInterval(() => {
   syncOutline(false);
 }, 350);
