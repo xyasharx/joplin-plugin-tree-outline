@@ -1,5 +1,9 @@
 # TreeOutline for Joplin
 
+[![Joplin Plugin](https://img.shields.io/badge/Joplin-Plugin-blue?logo=joplin&logoColor=white)](https://joplinapp.org/)
+[![Platforms](https://img.shields.io/badge/Platforms-Desktop%20%7C%20Mobile-green)](#-installation)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 TreeOutline is an outline and table of contents panel for Joplin desktop and mobile. It parses note headings into a nested tree with collapsible branches, indentation guides, and live filtering.
 
 ---
