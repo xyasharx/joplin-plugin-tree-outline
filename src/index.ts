@@ -39,7 +39,7 @@ const panelHtml = `
 
 joplin.plugins.register({
   onStart: async function () {
-    const panel = await joplin.views.panels.create('obsidian_outline_panel');
+    const panel = await joplin.views.panels.create('tree_outline_panel');
     await joplin.views.panels.setHtml(panel, panelHtml);
     await joplin.views.panels.addScript(panel, './webview/outline.css');
     await joplin.views.panels.addScript(panel, './webview/outline.js');
