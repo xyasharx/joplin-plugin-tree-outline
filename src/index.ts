@@ -38,90 +38,63 @@ joplin.plugins.register({
     await joplin.views.panels.addScript(panel, './webview/outline.css');
     await joplin.views.panels.addScript(panel, './webview/outline.js');
 
-    let activeNoteId = '';
-    let activeNoteBody = '';
-
-    const getNote = async () => {
+    const getSelectedNoteData = async () => {
       try {
         const note = await joplin.workspace.selectedNote();
         if (!note || !note.id) return null;
-        if (typeof note.body === 'string') return note;
 
-        const fullNote = await joplin.data.get(['notes', note.id], {
-          fields: ['id', 'title', 'body'],
-        });
-        return fullNote || note;
-      } catch (e) {
+        let body = typeof note.body === 'string' ? note.body : '';
+        let title = typeof note.title === 'string' ? note.title : '';
+
+        // If body is missing in shallow object, retrieve via database
+        if (!body) {
+          try {
+            const fullNote = await joplin.data.get(['notes', note.id], {
+              fields: ['id', 'title', 'body'],
+            });
+            if (fullNote) {
+              body = fullNote.body || '';
+              title = fullNote.title || title;
+            }
+          } catch (e) {}
+        }
+
+        return { id: note.id, title, body };
+      } catch (err) {
         return null;
       }
     };
 
-    const pushOutlineUpdate = async () => {
-      const note = await getNote();
-      if (!note) {
-        if (activeNoteId !== '') {
-          activeNoteId = '';
-          activeNoteBody = '';
-          try {
-            await joplin.views.panels.postMessage(panel, {
-              type: 'setHeadings',
-              headings: [],
-              isRtl: false,
-              noteId: '',
-            });
-          } catch (e) {
-            // Webview not ready yet
-          }
-        }
-        return;
-      }
-
-      activeNoteId = note.id;
-      activeNoteBody = note.body || '';
-
-      const headings = parseHeadings(activeNoteBody);
-      const isRtl = isTextRtl((note.title || '') + ' ' + activeNoteBody.slice(0, 1500));
-
+    const notifyWebviewToSync = async () => {
       try {
-        await joplin.views.panels.postMessage(panel, {
-          type: 'setHeadings',
-          headings,
-          isRtl,
-          noteId: note.id,
-        });
-      } catch (err) {
-        // Webview cycling
+        await joplin.views.panels.postMessage(panel, { type: 'noteSwitched' });
+      } catch (e) {
+        // Handled by polling heartbeat
       }
     };
 
-    const handleNoteSwitch = () => {
-      pushOutlineUpdate();
-      setTimeout(pushOutlineUpdate, 80);
-      setTimeout(pushOutlineUpdate, 250);
-      setTimeout(pushOutlineUpdate, 600);
-    };
-
+    // Respond to webview sync requests and navigation commands
     await joplin.views.panels.onMessage(panel, async (message: any) => {
       if (message.type === 'pollNote') {
-        const note = await getNote();
+        const note = await getSelectedNoteData();
+
         if (!note) {
-          const changed = activeNoteId !== '';
-          activeNoteId = '';
-          activeNoteBody = '';
+          const changed = message.clientNoteId !== '';
           return { changed, noteId: '', headings: [], isRtl: false };
         }
 
-        const body = note.body || '';
-        const changed = message.force || note.id !== activeNoteId || body !== activeNoteBody;
+        // Compare against what the webview client is ACTUALLY rendering
+        const idChanged = note.id !== message.clientNoteId;
+        const lengthChanged = note.body.length !== message.clientBodyLength;
+        const changed = message.force || idChanged || lengthChanged;
 
         if (changed) {
-          activeNoteId = note.id;
-          activeNoteBody = body;
           return {
             changed: true,
             noteId: note.id,
-            headings: parseHeadings(body),
-            isRtl: isTextRtl((note.title || '') + ' ' + body.slice(0, 1500)),
+            bodyLength: note.body.length,
+            headings: parseHeadings(note.body),
+            isRtl: isTextRtl(note.title + ' ' + note.body.slice(0, 1500)),
           };
         }
 
@@ -136,23 +109,22 @@ joplin.plugins.register({
             name: 'setCursor',
             args: [{ line: message.line, char: 0 }],
           });
-        } catch (e) {
-          // Handled if in viewer mode
-        }
+        } catch (e) {}
 
         try {
           await joplin.commands.execute('scrollToHash', message.slug);
-        } catch (e) {
-          // Handled if hash anchor not found
-        }
+        } catch (e) {}
       }
     });
 
-    await joplin.workspace.onNoteSelectionChange(handleNoteSwitch);
-    await joplin.workspace.onNoteChange(pushOutlineUpdate);
+    // Notify webview on workspace events
+    await joplin.workspace.onNoteSelectionChange(notifyWebviewToSync);
+    await joplin.workspace.onNoteChange(notifyWebviewToSync);
 
-    handleNoteSwitch();
+    // Initial trigger
+    notifyWebviewToSync();
 
+    // Toggle command
     await joplin.commands.register({
       name: 'toggleTreeOutline',
       label: 'Toggle TreeOutline',
