@@ -54,3 +54,12 @@ npm install
 
 # Build the plugin archive
 npm run dist
+```
+
+The compiled package will be created at `publish/com.yourname.treeoutline.jpl`.
+
+---
+
+## License
+
+MIT
