@@ -34,31 +34,38 @@ const panelHtml = `
 joplin.plugins.register({
   onStart: async function () {
     const panel = await joplin.views.panels.create('obsidian_outline_panel');
-    
-    // Set HTML snippet directly (no filesystem reads)
     await joplin.views.panels.setHtml(panel, panelHtml);
     await joplin.views.panels.addScript(panel, './webview/outline.css');
     await joplin.views.panels.addScript(panel, './webview/outline.js');
 
-    const updateOutline = async () => {
+    const getNoteHeadings = async () => {
       try {
         const note = await joplin.workspace.selectedNote();
-        if (!note || !note.body) {
-          await joplin.views.panels.postMessage(panel, { type: 'setHeadings', headings: [] });
-          return;
-        }
-        const headings = parseHeadings(note.body);
-        await joplin.views.panels.postMessage(panel, { type: 'setHeadings', headings });
+        if (!note || !note.body) return [];
+        return parseHeadings(note.body);
       } catch (err) {
-        console.error('Error updating outline:', err);
+        console.error('[TreeOutline] getNoteHeadings error:', err);
+        return [];
       }
     };
 
-    // Communication handshake
+    const updateOutline = async () => {
+      const headings = await getNoteHeadings();
+      try {
+        await joplin.views.panels.postMessage(panel, {
+          type: 'setHeadings',
+          headings: headings,
+        });
+      } catch (err) {
+        // Ignored if webview is cycling
+      }
+    };
+
+    // Responds to pull requests & navigation clicks from webview
     await joplin.views.panels.onMessage(panel, async (message: any) => {
-      if (message.type === 'ready') {
-        // Webview is now mounted and listening
-        await updateOutline();
+      if (message.type === 'getHeadings') {
+        const headings = await getNoteHeadings();
+        return { headings };
       } else if (message.type === 'jumpToHeading') {
         try {
           await joplin.commands.execute('editor.execCommand', {
@@ -70,7 +77,7 @@ joplin.plugins.register({
             args: [{ line: message.line, char: 0 }],
           });
         } catch (e) {
-          console.warn('CodeMirror scroll error:', e);
+          // Viewer-only mode fallback
         }
         try {
           await joplin.commands.execute('scrollToHash', message.slug);
@@ -78,11 +85,15 @@ joplin.plugins.register({
       }
     });
 
-    // Listen to note switches and edits
+    // Event hooks
     await joplin.workspace.onNoteSelectionChange(updateOutline);
     await joplin.workspace.onNoteChange(updateOutline);
 
-    // Register a command to toggle the panel
+    // Initial triggers for app startup
+    setTimeout(updateOutline, 250);
+    setTimeout(updateOutline, 1000);
+
+    // Register toggle command
     await joplin.commands.register({
       name: 'toggleTreeOutline',
       label: 'Toggle TreeOutline',
@@ -93,7 +104,6 @@ joplin.plugins.register({
       },
     });
 
-    // Explicitly show the panel on start
     await joplin.views.panels.show(panel, true);
   },
 });
