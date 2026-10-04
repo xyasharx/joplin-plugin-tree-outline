@@ -1,9 +1,9 @@
 :root {
   --nav-item-color: var(--joplin-color, #2e3338);
-  --nav-item-background-hover: rgba(125, 125, 125, 0.09);
-  --nav-item-background-active: rgba(125, 125, 125, 0.18);
-  --nav-indent-guide: rgba(125, 125, 125, 0.22);
-  --font-interface: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --nav-item-background-hover: rgba(125, 125, 125, 0.08);
+  --nav-item-background-active: rgba(125, 125, 125, 0.16);
+  --nav-indent-guide: rgba(125, 125, 125, 0.25);
+  --font-interface: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Vazirmatn", "Sahel", "Tahoma", sans-serif;
 }
 
 body {
@@ -17,13 +17,33 @@ body {
   overflow-x: hidden;
 }
 
+/* Direction support */
+body[dir="ltr"], .outline-container[dir="ltr"] {
+  direction: ltr;
+  text-align: left;
+}
+
+body[dir="rtl"], .outline-container[dir="rtl"] {
+  direction: rtl;
+  text-align: right;
+}
+
 .outline-container {
   display: flex;
   flex-direction: column;
   height: 100vh;
+  box-sizing: border-box;
 }
 
-/* Obsidian Top Actions */
+.outline-status {
+  padding: 24px 12px;
+  text-align: center;
+  color: var(--joplin-color, #888);
+  opacity: 0.65;
+  font-size: 12px;
+}
+
+/* Top Action Header */
 .nav-header {
   padding: 6px 10px;
   border-bottom: 1px solid var(--joplin-divider-color, rgba(125, 125, 125, 0.15));
@@ -67,7 +87,7 @@ body {
 
 .search-input-container input {
   width: 100%;
-  padding: 4px 22px 4px 8px;
+  padding: 5px 24px 5px 8px;
   font-size: 12px;
   border: 1px solid var(--joplin-divider-color, rgba(125, 125, 125, 0.3));
   border-radius: 4px;
@@ -76,18 +96,22 @@ body {
   outline: none;
 }
 
+[dir="rtl"] .search-input-container input {
+  padding: 5px 8px 5px 24px;
+}
+
 .search-clear-btn {
   position: absolute;
-  right: 6px;
+  inset-inline-end: 8px;
   cursor: pointer;
   font-size: 14px;
   color: #888;
   display: none;
 }
 
-/* Tree Structure & Indentation Guidelines */
+/* Tree Structure */
 .outline-tree {
-  padding: 6px 8px 16px 8px;
+  padding: 6px 8px 24px 8px;
   overflow-y: auto;
   flex-grow: 1;
 }
@@ -99,18 +123,20 @@ body {
 .tree-item-self {
   display: flex;
   align-items: center;
-  padding: 3px 6px;
+  padding: 4px 6px;
   border-radius: 4px;
   cursor: pointer;
   line-height: 1.45;
-  transition: background-color 0.1s ease;
+  transition: background-color 0.12s ease;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .tree-item-self:hover {
   background-color: var(--nav-item-background-hover);
 }
 
-/* Active Highlight Pill matching screenshot */
+/* Active Highlight matching screenshot */
 .tree-item-self.is-active {
   background-color: var(--nav-item-background-active);
   font-weight: 500;
@@ -133,10 +159,12 @@ body {
   height: 12px;
 }
 
-.tree-item.is-collapsed > .tree-item-self .collapse-icon {
+/* LTR: Collapsed points right */
+[dir="ltr"] .tree-item.is-collapsed > .tree-item-self .collapse-icon {
   transform: rotate(-90deg);
 }
 
+/* RTL: Collapsed points left */
 [dir="rtl"] .tree-item.is-collapsed > .tree-item-self .collapse-icon {
   transform: rotate(90deg);
 }
@@ -153,18 +181,17 @@ body {
   flex-grow: 1;
 }
 
-/* Obsidian Indent Guideline connecting children */
+/* Vertical Guide Lines: Right side in RTL, Left side in LTR */
 .tree-item-children {
   padding-inline-start: 14px;
-  border-inline-start: 1px solid var(--nav-indent-guide);
-  margin-inline-start: 8px;
+  border-inline-start: 1.5px solid var(--nav-indent-guide);
+  margin-inline-start: 7px;
 }
 
 .tree-item.is-collapsed > .tree-item-children {
   display: none;
 }
 
-/* Search match highlights */
 .highlight-match {
   text-decoration: underline;
   font-weight: 600;
