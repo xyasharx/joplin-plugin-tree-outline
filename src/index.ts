@@ -44,7 +44,6 @@ joplin.plugins.register({
     await joplin.views.panels.addScript(panel, './webview/outline.css');
     await joplin.views.panels.addScript(panel, './webview/outline.js');
 
-    // Check platform (desktop vs mobile)
     let isMobile = false;
     try {
       const vInfo = await joplin.versionInfo();
@@ -113,24 +112,39 @@ joplin.plugins.register({
           await joplin.views.panels.hide(panel);
         } catch (e) {}
       } else if (message.type === 'jumpToHeading') {
-        // 1. Scroll CodeMirror Editor
+        const line = typeof message.line === 'number' ? message.line : 0;
+        const slug = message.slug || '';
+
+        // 1. Jump in CodeMirror (Raw Editor and Split View)
         try {
-          await joplin.commands.execute('editor.execCommand', {
-            name: 'scrollIntoView',
-            args: [{ line: message.line, char: 0 }],
-          });
+          await joplin.commands.execute('editor.focus');
+          // Note: CodeMirror requires 'ch', not 'char'
           await joplin.commands.execute('editor.execCommand', {
             name: 'setCursor',
-            args: [{ line: message.line, char: 0 }],
+            args: [{ line: line, ch: 0 }],
+          });
+          await joplin.commands.execute('editor.execCommand', {
+            name: 'scrollIntoView',
+            args: [{ line: line, ch: 0 }, 150], // 150px vertical margin
           });
         } catch (e) {}
 
-        // 2. Scroll Markdown Rendered Preview
-        try {
-          await joplin.commands.execute('scrollToHash', message.slug);
-        } catch (e) {}
+        // 2. Jump in Markdown Viewer (Rendered HTML Viewer Mode)
+        if (slug) {
+          try {
+            await joplin.commands.execute('scrollToHash', slug);
+          } catch (e) {}
 
-        // 3. On mobile: automatically dismiss dialog after jumping to section
+          try {
+            await joplin.commands.execute('scrollToHash', '#' + slug);
+          } catch (e) {}
+
+          try {
+            await joplin.commands.execute('scrollToHash', encodeURIComponent(slug));
+          } catch (e) {}
+        }
+
+        // 3. On mobile: auto-close dialog after jumping
         if (isMobile) {
           try {
             await joplin.views.panels.hide(panel);
