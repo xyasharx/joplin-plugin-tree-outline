@@ -25,21 +25,15 @@ function setDirection(isRtl) {
   if (container) container.setAttribute('dir', dir);
 }
 
-/**
- * International Search Normalizer:
- * 1. Strips European accents (é -> e, ä -> a)
- * 2. Removes Persian/Arabic ZWNJ (نیم‌فاصله) & Tashkeel/harakat
- * 3. Unifies Arabic & Persian variants (ي/ی, ك/ک, ة/ه)
- */
 function normalizeForSearch(str) {
   if (!str) return '';
   return str
     .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '') // Strip Latin accents
-    .replace(/[\u200B-\u200D\uFEFF]/g, '') // Remove ZWNJ and invisible zero-width spaces
-    .replace(/[\u064B-\u065F\u0670]/g, '') // Strip Arabic/Persian Tashkeel
-    .replace(/[يى]/g, 'ی') // Unify Arabic Yeh to Persian Ye
-    .replace(/[ك]/g, 'ک')  // Unify Arabic Kaf to Persian Keh
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[\u200B-\u200D\uFEFF]/g, '')
+    .replace(/[\u064B-\u065F\u0670]/g, '')
+    .replace(/[يى]/g, 'ی')
+    .replace(/[ك]/g, 'ک')
     .replace(/[ة]/g, 'ه')
     .toLowerCase()
     .trim();
@@ -62,6 +56,16 @@ function initEventHandlers() {
   const searchInput = getSearchInput();
   const searchClearBtn = document.getElementById('search-clear-btn');
   const collapseAllBtn = document.getElementById('collapse-all-btn');
+  const closePanelBtn = document.getElementById('close-panel-btn');
+
+  if (closePanelBtn && !closePanelBtn.dataset.bound) {
+    closePanelBtn.dataset.bound = 'true';
+    closePanelBtn.addEventListener('click', () => {
+      if (api && api.postMessage) {
+        api.postMessage({ type: 'closePanel' });
+      }
+    });
+  }
 
   if (searchToggleBtn && !searchToggleBtn.dataset.bound) {
     searchToggleBtn.dataset.bound = 'true';
@@ -123,7 +127,6 @@ function createNodeElement(node, searchQuery) {
     self.classList.add('is-active');
   }
 
-  // Chevron Toggle
   const icon = document.createElement('div');
   icon.className = 'collapse-icon';
   if (!node.children || node.children.length === 0) {
@@ -139,8 +142,6 @@ function createNodeElement(node, searchQuery) {
     item.classList.toggle('is-collapsed');
   });
 
-  // BiDi-isolated Text Container (<bdi>)
-  // Prevents mixed Persian/English punctuation flipping
   const inner = document.createElement('bdi');
   inner.className = 'tree-item-inner';
   inner.title = `${node.text} (H${node.level})`;
@@ -151,7 +152,6 @@ function createNodeElement(node, searchQuery) {
     const matchIndex = normText.indexOf(normQuery);
 
     if (matchIndex !== -1) {
-      // Find approximate highlight slice length
       const matchLength = searchQuery.length;
       inner.innerHTML = `${node.text.slice(0, matchIndex)}<span class="highlight-match">${node.text.slice(matchIndex, matchIndex + matchLength)}</span>${node.text.slice(matchIndex + matchLength)}`;
     } else {
@@ -161,7 +161,6 @@ function createNodeElement(node, searchQuery) {
     inner.textContent = node.text;
   }
 
-  // Jump to Heading
   self.addEventListener('click', () => {
     document.querySelectorAll('.tree-item-self.is-active').forEach((el) => el.classList.remove('is-active'));
     self.classList.add('is-active');
@@ -180,7 +179,6 @@ function createNodeElement(node, searchQuery) {
   self.appendChild(inner);
   item.appendChild(self);
 
-  // Render Sub-branches
   if (node.children && node.children.length > 0) {
     const childrenContainer = document.createElement('div');
     childrenContainer.className = 'tree-item-children';
@@ -252,15 +250,17 @@ async function syncOutline(force = false) {
       renderedBodyLength = data.bodyLength !== undefined ? data.bodyLength : -1;
       activeHeadingId = null;
 
+      if (data.isMobile) {
+        document.body.classList.add('is-mobile');
+      }
+
       setDirection(data.isRtl);
       allHeadings = data.headings || [];
 
       const searchInput = getSearchInput();
       renderTree(allHeadings, searchInput ? searchInput.value.trim() : '');
     }
-  } catch (err) {
-    // Handled transient IPC
-  }
+  } catch (err) {}
 }
 
 if (api && api.onMessage) {
