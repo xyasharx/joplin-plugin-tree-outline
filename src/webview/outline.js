@@ -2,7 +2,8 @@
 
 const api = typeof webviewApi !== 'undefined' ? webviewApi : (window.webviewApi || null);
 
-let currentNoteId = '';
+let renderedNoteId = '';
+let renderedBodyLength = -1;
 let allHeadings = [];
 let isAllCollapsed = false;
 let activeHeadingId = null;
@@ -180,45 +181,47 @@ function renderTree(headings, query = '') {
   }
 }
 
-// 1. Instant Push Updates from Joplin
-if (api && api.onMessage) {
-  api.onMessage((message) => {
-    if (message.type === 'setHeadings') {
-      currentNoteId = message.noteId;
-      setDirection(message.isRtl);
-      allHeadings = message.headings || [];
-      const searchInput = getSearchInput();
-      renderTree(allHeadings, searchInput ? searchInput.value.trim().toLowerCase() : '');
-    }
-  });
-}
-
-// 2. Active Heartbeat Poll
-async function syncWithJoplin(force = false) {
+// Actively asks Joplin: "I am showing note X, has the user switched?"
+async function syncOutline(force = false) {
   if (!api || !api.postMessage) return;
 
   try {
     const data = await api.postMessage({
       type: 'pollNote',
+      clientNoteId: renderedNoteId,
+      clientBodyLength: renderedBodyLength,
       force: force,
     });
 
     if (data && data.changed) {
-      currentNoteId = data.noteId;
+      renderedNoteId = data.noteId;
+      renderedBodyLength = data.bodyLength !== undefined ? data.bodyLength : -1;
+      activeHeadingId = null;
+
       setDirection(data.isRtl);
       allHeadings = data.headings || [];
+
       const searchInput = getSearchInput();
       renderTree(allHeadings, searchInput ? searchInput.value.trim().toLowerCase() : '');
     }
   } catch (err) {
-    // Ignore transient IPC busy errors
+    // Suppress transient IPC busy errors
   }
 }
 
-// Initial pull on load
-syncWithJoplin(true);
+// 1. Immediate trigger when Joplin notifies a switch
+if (api && api.onMessage) {
+  api.onMessage((msg) => {
+    if (msg.type === 'noteSwitched') {
+      syncOutline(true);
+    }
+  });
+}
 
-// Heartbeat interval ensures immediate sync if any Joplin selection event was delayed
+// 2. Initial fetch on load
+syncOutline(true);
+
+// 3. Heartbeat check every 350ms ensures guaranteed note switching
 setInterval(() => {
-  syncWithJoplin(false);
-}, 500);
+  syncOutline(false);
+}, 350);
