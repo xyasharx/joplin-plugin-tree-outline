@@ -8,10 +8,34 @@ export interface HeadingNode {
   children: HeadingNode[];
 }
 
+/**
+ * Detects RTL scripts: Arabic, Persian, Hebrew, Urdu, Kurdish, Syriac, Thaana (Dhivehi)
+ */
 export function isTextRtl(text: string): boolean {
-  // Matches Hebrew, Arabic, Persian, Kurdish, and Urdu Unicode blocks
-  const rtlRegex = /[\u0590-\u05FF\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]/;
+  const rtlRegex = /[\u0590-\u05FF\u0600-\u06FF\u0700-\u074F\u0750-\u077F\u0780-\u07BF\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]/;
   return rtlRegex.test(text);
+}
+
+/**
+ * Universal Unicode-compliant Slugifier
+ * Works flawlessly with English, Persian, Arabic, Chinese, Japanese, Russian, German, Greek, etc.
+ */
+export function unicodeSlugify(text: string): string {
+  return text
+    .normalize('NFKC')
+    .toLowerCase()
+    // Match any Unicode Letter (\p{L}) or Number (\p{N}) or whitespace or hyphen
+    .replace(/[^\p{L}\p{N}\s-]/gu, '')
+    .trim()
+    .replace(/\s+/g, '-');
+}
+
+export function cleanHeadingText(raw: string): string {
+  return raw
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // [link](url) -> link
+    .replace(/[*_~`==]/g, '')                 // Markdown bold, italic, code, highlights
+    .replace(/<[^>]*>/g, '')                  // Inline HTML tags
+    .trim();
 }
 
 export function parseHeadings(markdown: string): HeadingNode[] {
@@ -20,24 +44,11 @@ export function parseHeadings(markdown: string): HeadingNode[] {
   const flatNodes: HeadingNode[] = [];
   let inCodeBlock = false;
 
-  const slugify = (text: string) =>
-    text
-      .toLowerCase()
-      .replace(/[^\w\u0590-\u05FF\u0600-\u06FF\uFB8A-\uFBFC\u0400-\u04FF -]/g, '')
-      .replace(/\s+/g, '-');
-
-  const cleanHeadingText = (raw: string) => {
-    return raw
-      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // [link](url) -> link
-      .replace(/[*_~`]/g, '')                 // Markdown styles
-      .trim();
-  };
-
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     const trimmed = line.trim();
 
-    // Skip fenced code blocks (``` or ~~~)
+    // Toggle fenced code blocks (``` or ~~~)
     if (/^(```|~~~)/.test(trimmed)) {
       inCodeBlock = !inCodeBlock;
       continue;
@@ -48,7 +59,7 @@ export function parseHeadings(markdown: string): HeadingNode[] {
     const atxMatch = line.match(/^\s{0,3}(#{1,6})\s+(.*)$/);
     if (atxMatch) {
       const level = atxMatch[1].length;
-      const rawText = atxMatch[2].replace(/\s+#+\s*$/, '').trim(); // Remove trailing '#'
+      const rawText = atxMatch[2].replace(/\s+#+\s*$/, '').trim();
       const text = cleanHeadingText(rawText);
       if (text) {
         flatNodes.push({
@@ -57,7 +68,7 @@ export function parseHeadings(markdown: string): HeadingNode[] {
           text,
           rawText,
           line: i,
-          slug: slugify(text),
+          slug: unicodeSlugify(text),
           children: [],
         });
       }
@@ -75,7 +86,7 @@ export function parseHeadings(markdown: string): HeadingNode[] {
             text,
             rawText: lines[i - 1].trim(),
             line: i - 1,
-            slug: slugify(text),
+            slug: unicodeSlugify(text),
             children: [],
           });
         }
@@ -88,7 +99,7 @@ export function parseHeadings(markdown: string): HeadingNode[] {
             text,
             rawText: lines[i - 1].trim(),
             line: i - 1,
-            slug: slugify(text),
+            slug: unicodeSlugify(text),
             children: [],
           });
         }
