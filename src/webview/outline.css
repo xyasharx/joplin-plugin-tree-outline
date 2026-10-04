@@ -5,7 +5,10 @@
   --nav-accent: var(--joplin-selected-color, #705dcf);
   --nav-indent-guide: rgba(125, 125, 125, 0.18);
   --nav-indent-guide-hover: rgba(125, 125, 125, 0.45);
-  --font-interface: -apple-system, BlinkMacSystemFont, "Vazirmatn", "Sahel", "Segoe UI", Roboto, "Tahoma", sans-serif;
+  
+  /* International System Font Stack:
+     Latin, Persian/Arabic (Vazirmatn, Sahel), CJK (PingFang, YaHei, Meiryo), Hebrew (Segoe UI) */
+  --font-interface: -apple-system, BlinkMacSystemFont, "Vazirmatn", "Sahel", "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans", "Microsoft YaHei", "Noto Sans", sans-serif;
 }
 
 body {
@@ -16,6 +19,8 @@ body {
   font-family: var(--font-interface);
   user-select: none;
   overflow-x: hidden;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
 }
 
 /* Directional Base */
@@ -40,7 +45,7 @@ body[dir="rtl"], .outline-container[dir="rtl"] {
   padding: 32px 16px;
   text-align: center;
   color: var(--joplin-color, #888);
-  opacity: 0.6;
+  opacity: 0.65;
   font-size: 12.5px;
   line-height: 1.6;
 }
@@ -85,7 +90,7 @@ body[dir="rtl"], .outline-container[dir="rtl"] {
   transform: scale(0.94);
 }
 
-/* Search Box */
+/* International Search Box */
 .search-input-container {
   display: none;
   position: relative;
@@ -127,7 +132,6 @@ body[dir="rtl"], .outline-container[dir="rtl"] {
   color: #888;
   display: none;
   padding: 2px 4px;
-  border-radius: 50%;
 }
 
 .search-clear-btn:hover {
@@ -162,10 +166,10 @@ body[dir="rtl"], .outline-container[dir="rtl"] {
   display: flex;
   align-items: center;
   padding: 4px 6px;
-  margin: 1px 0;
+  margin: 1.5px 0;
   border-radius: 5px;
   cursor: pointer;
-  line-height: 1.6;
+  line-height: 1.6; /* Ample space for Persian/Arabic/Hebrew diacritics */
   transition: background-color 0.12s ease, color 0.12s ease;
   width: 100%;
   box-sizing: border-box;
@@ -175,33 +179,25 @@ body[dir="rtl"], .outline-container[dir="rtl"] {
   background-color: var(--nav-item-background-hover);
 }
 
-/* ========================================================
-   TYPOGRAPHIC HIERARCHY (Obsidian-Style Depth)
-   ======================================================== */
-
-/* H1 - Top Branches */
+/* Typographic Hierarchy */
 .tree-item-self[data-level="1"] {
   font-size: 14.5px;
   font-weight: 650;
   margin-top: 8px;
-  letter-spacing: -0.01em;
 }
 
-/* H2 - Main Sub-branches */
 .tree-item-self[data-level="2"] {
   font-size: 13.5px;
   font-weight: 550;
   margin-top: 3px;
 }
 
-/* H3 - Sections */
 .tree-item-self[data-level="3"] {
   font-size: 12.5px;
   font-weight: 500;
   margin-top: 1px;
 }
 
-/* H4, H5, H6 - Subtle minor sub-items */
 .tree-item-self[data-level="4"],
 .tree-item-self[data-level="5"],
 .tree-item-self[data-level="6"] {
@@ -210,9 +206,7 @@ body[dir="rtl"], .outline-container[dir="rtl"] {
   opacity: 0.88;
 }
 
-/* ========================================================
-   ACTIVE PILL (With Distinct Accent Indicator Bar)
-   ======================================================== */
+/* Active Highlight with Adaptive Leading Accent */
 .tree-item-self.is-active {
   background-color: var(--nav-item-background-active);
   border-inline-start: 3px solid var(--nav-accent);
@@ -263,17 +257,18 @@ body[dir="rtl"], .outline-container[dir="rtl"] {
   pointer-events: none;
 }
 
+/* BiDi Text Container */
 .tree-item-inner {
+  display: inline-block;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   flex-grow: 1;
   padding: 0 2px;
+  unicode-bidi: isolate; /* Prevents punctuation bleed across script transitions */
 }
 
-/* ========================================================
-   ILLUMINATED INDENT GUIDES (Hover Interaction)
-   ======================================================== */
+/* Illuminated Indent Guidelines */
 .tree-item-children {
   padding-inline-start: 14px;
   border-inline-start: 1.5px solid var(--nav-indent-guide);
@@ -281,7 +276,6 @@ body[dir="rtl"], .outline-container[dir="rtl"] {
   transition: border-color 0.18s ease;
 }
 
-/* When hovering over any section, its guideline illuminates */
 .tree-item:hover > .tree-item-children {
   border-inline-start-color: var(--nav-indent-guide-hover);
 }
