@@ -1,10 +1,10 @@
-name: Build & Release JPL (Testing)
+name: Build & Release JPL
 
 on:
   push:
     tags:
       - 'v*'
-  workflow_dispatch: # Allows clicking "Run workflow" in GitHub UI
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -17,10 +17,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
 
-      - name: Setup Node.js
+      - name: Setup Node.js (Node 26 Current)
         uses: actions/setup-node@v7
         with:
-          node-version: 26 # Stable LTS
+          node-version: 26
 
       - name: Install dependencies
         run: npm install
@@ -28,12 +28,11 @@ jobs:
       - name: Build Joplin plugin (.jpl)
         run: npm run dist
 
-      # Creates a GitHub Release with your .jpl file attached (No npm needed!)
       - name: Upload .jpl to GitHub Release
         uses: softprops/action-gh-release@v3
         with:
           files: publish/*.jpl
           generate_release_notes: true
-          prerelease: true # Marked as testing/pre-release
+          prerelease: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
