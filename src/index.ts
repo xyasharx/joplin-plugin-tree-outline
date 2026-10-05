@@ -106,17 +106,27 @@ joplin.plugins.register({
         const line = typeof message.line === 'number' ? message.line : 0;
         const slug = message.slug || '';
 
+        // Query which panes are currently open (e.g. ['viewer'], ['editor'], or ['editor', 'viewer'])
+        let visiblePanes: string[] = ['viewer'];
         try {
-          let isCodeView = false;
-          try {
-            isCodeView = await joplin.settings.globalValue('editor.codeView');
-          } catch (e) {
-            isCodeView = !isMobile;
-          }
+          const panes = await joplin.settings.globalValue('noteVisiblePanes');
+          if (Array.isArray(panes)) visiblePanes = panes;
+        } catch (e) {
+          visiblePanes = ['viewer'];
+        }
 
-          if (isCodeView) {
-            // Mode A: Markdown Editor (CodeMirror) or Split View
-            await joplin.commands.execute('editor.focus');
+        // 1. Viewer is active (Markdown Viewer mode OR Split View OR Mobile)
+        if (visiblePanes.includes('viewer') || isMobile) {
+          if (slug) {
+            try {
+              await joplin.commands.execute('scrollToHash', slug);
+            } catch (e) {}
+          }
+        }
+
+        // 2. Editor is active (Editor Only OR Split View)
+        if (visiblePanes.includes('editor') && !isMobile) {
+          try {
             await joplin.commands.execute('editor.execCommand', {
               name: 'setCursor',
               args: [{ line: line, ch: 0 }],
@@ -125,22 +135,7 @@ joplin.plugins.register({
               name: 'scrollIntoView',
               args: [{ line: line, ch: 0 }, 150],
             });
-
-            if (slug) {
-              await joplin.commands.execute('scrollToHash', slug);
-            }
-          } else {
-            // Mode B: Markdown Viewer (Rendered HTML Mode on Desktop & Mobile)
-            if (slug) {
-              await joplin.commands.execute('scrollToHash', slug);
-            }
-          }
-        } catch (e) {
-          if (slug) {
-            try {
-              await joplin.commands.execute('scrollToHash', slug);
-            } catch (err) {}
-          }
+          } catch (e) {}
         }
       }
     });
