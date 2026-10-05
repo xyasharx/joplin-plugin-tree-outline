@@ -1,3 +1,5 @@
+import uslug from 'uslug';
+
 export interface HeadingNode {
   id: string;
   level: number;
@@ -11,25 +13,6 @@ export interface HeadingNode {
 export function isTextRtl(text: string): boolean {
   const rtlRegex = /[\u0590-\u05FF\u0600-\u06FF\u0700-\u074F\u0750-\u077F\u0780-\u07BF\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]/;
   return rtlRegex.test(text);
-}
-
-/**
- * Exact implementation of Joplin's slugifier algorithm:
- * Extracts all contiguous words composed of Unicode Letters, Numbers, and Combining Marks,
- * joining them with hyphens.
- *
- * Correctly splits:
- * - Persian half-spaces (طهارت‌های -> طهارت-های)
- * - Timestamps (۰۵:۰۰ -> ۰۵-۰۰)
- * - Quotes & Colons («خیدوش دات»: -> خیدوش-دات)
- */
-export function uslug(text: string): string {
-  const words = text
-    .toString()
-    .toLowerCase()
-    .match(/[\p{Letter}\p{Number}\p{Mark}]+/gu);
-
-  return words ? words.join('-') : '';
 }
 
 export function cleanHeadingText(raw: string): string {
@@ -46,17 +29,15 @@ export function parseHeadings(markdown: string): HeadingNode[] {
   const flatNodes: HeadingNode[] = [];
   let inCodeBlock = false;
 
-  // Joplin official duplicate slug registry: first is "slug", second is "slug-2", third is "slug-3"
-  const slugs: { [key: string]: boolean } = {};
+  // Joplin official duplicate slug registry
+  const slugs: { [key: string]: number } = {};
   const getJoplinSlug = (headerText: string): string => {
     const s = uslug(headerText);
-    let num = 1;
-    while (slugs[s + (num > 1 ? '-' + num : '')]) {
-      num++;
-    }
-    const finalSlug = s + (num > 1 ? '-' + num : '');
-    slugs[finalSlug] = true;
-    return finalSlug;
+    const num = slugs[s] ? slugs[s] : 1;
+    const output = [s];
+    if (num > 1) output.push(String(num));
+    slugs[s] = num + 1;
+    return output.join('-');
   };
 
   for (let i = 0; i < lines.length; i++) {
