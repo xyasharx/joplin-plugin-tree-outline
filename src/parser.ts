@@ -13,13 +13,11 @@ export function isTextRtl(text: string): boolean {
   return rtlRegex.test(text);
 }
 
-// Matches all standard & Unicode punctuation (colons, Persian quotes, Arabic commas, etc.)
 const rControl = /[\u0000-\u001f]/g;
 const rSpecial = /[\s~!@#$%^&*()+=—–\-_[\]{};:'",.<>?/\\|`^«»؛،؟…]+/g;
 
 /**
- * Universal Joplin-compliant slugifier:
- * Turns all punctuation into hyphens, compresses runs of hyphens, and trims edges.
+ * Universal Joplin-compliant slugifier matching Joplin's MarkdownIt renderer
  */
 export function uslug(text: string): string {
   return text
@@ -27,7 +25,7 @@ export function uslug(text: string): string {
     .trim()
     .toLowerCase()
     .replace(rControl, '')
-    .replace(rSpecial, '-') // Convert any punctuation or spacing run to a hyphen
+    .replace(rSpecial, '-') // Replace punctuation runs with single hyphen
     .replace(/-+/g, '-')    // Collapse consecutive hyphens
     .replace(/^-+|-+$/g, '');
 }
@@ -46,7 +44,7 @@ export function parseHeadings(markdown: string): HeadingNode[] {
   const flatNodes: HeadingNode[] = [];
   let inCodeBlock = false;
 
-  // Joplin duplicate slug registry: first is "name", second is "name-2", third is "name-3"
+  // Official Joplin duplicate slug registry: first is "name", second is "name-2"
   const slugs: { [key: string]: boolean } = {};
   const getJoplinSlug = (headerText: string): string => {
     const s = uslug(headerText);
