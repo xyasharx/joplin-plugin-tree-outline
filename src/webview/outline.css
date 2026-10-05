@@ -86,6 +86,12 @@ body[dir="rtl"], .outline-container[dir="rtl"] {
   background-color: var(--nav-item-background-hover);
 }
 
+.clickable-icon.is-active {
+  opacity: 1;
+  background-color: var(--nav-item-background-active);
+  color: var(--nav-accent);
+}
+
 /* Search Box */
 .search-input-container {
   display: none;
@@ -131,11 +137,11 @@ body[dir="rtl"], .outline-container[dir="rtl"] {
 /* Tree Scroll Container with Momentum Touch Support */
 .outline-tree {
   flex: 1 1 auto;
-  min-height: 0; /* Critical: allows flex container to scroll on mobile */
+  min-height: 0; /* Allows flex child to shrink and enable scrolling */
   overflow-y: auto;
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch; /* Momentum scrolling */
-  touch-action: pan-y; /* Permits touch scroll swipe gestures */
+  touch-action: pan-y; /* Permits vertical touch gestures */
   padding: 6px 8px calc(16px + env(safe-area-inset-bottom, 10px)) 8px;
   box-sizing: border-box;
 }
@@ -242,7 +248,7 @@ body[dir="rtl"], .outline-container[dir="rtl"] {
   pointer-events: none;
 }
 
-/* BiDi Text Container */
+/* Default: Single-line with clean ellipsis */
 .tree-item-inner {
   display: inline-block;
   overflow: hidden;
@@ -251,6 +257,25 @@ body[dir="rtl"], .outline-container[dir="rtl"] {
   flex-grow: 1;
   padding: 0 2px;
   unicode-bidi: isolate;
+}
+
+/* ========================================================
+   TEXT WRAP MODE (Multilingual & Long Heading Support)
+   ======================================================== */
+.outline-container.is-wrapped .tree-item-self {
+  align-items: flex-start; /* Pin chevron to first line of text */
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+
+.outline-container.is-wrapped .tree-item-inner {
+  white-space: normal;      /* Allow full multiline wrapping */
+  word-break: break-word;   /* Break long words naturally */
+  overflow-wrap: break-word;
+}
+
+.outline-container.is-wrapped .collapse-icon {
+  margin-top: 1px; /* Align chevron with the first line baseline */
 }
 
 /* Indent Guidelines */
