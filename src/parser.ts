@@ -13,17 +13,22 @@ export function isTextRtl(text: string): boolean {
   return rtlRegex.test(text);
 }
 
-// Exact character rules matching Joplin's uslug renderer
+// Matches all standard & Unicode punctuation (colons, Persian quotes, Arabic commas, etc.)
 const rControl = /[\u0000-\u001f]/g;
-const rSpecial = /[\s~!@#$%^&*()+=—[\]{};:'",.<>?/\\|`^«»؛،]+|_+/g;
+const rSpecial = /[\s~!@#$%^&*()+=—–\-_[\]{};:'",.<>?/\\|`^«»؛،؟…]+/g;
 
+/**
+ * Universal Joplin-compliant slugifier:
+ * Turns all punctuation into hyphens, compresses runs of hyphens, and trims edges.
+ */
 export function uslug(text: string): string {
   return text
     .toString()
     .trim()
     .toLowerCase()
     .replace(rControl, '')
-    .replace(rSpecial, '-')
+    .replace(rSpecial, '-') // Convert any punctuation or spacing run to a hyphen
+    .replace(/-+/g, '-')    // Collapse consecutive hyphens
     .replace(/^-+|-+$/g, '');
 }
 
@@ -97,7 +102,7 @@ export function parseHeadings(markdown: string): HeadingNode[] {
             id: `heading-${i - 1}-${flatNodes.length}`,
             level,
             text,
-            rawText: lines[i - 1].trim(),
+            rawText,
             line: i - 1,
             slug: getJoplinSlug(text),
             children: [],
