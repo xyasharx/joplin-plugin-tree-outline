@@ -28,7 +28,7 @@ TreeOutline is an outline and table of contents panel for Joplin desktop and mob
 3. Click **Install** and restart Joplin.
 
 ### Manual Installation
-1. Download the latest `com.yourname.treeoutline.jpl` file from the [Releases](https://github.com/xyasharx/joplin-plugin-tree-outline/releases) page.
+1. Download the latest `com.xyasharx.treeoutline.jpl` file from the [Releases](https://github.com/xyasharx/joplin-plugin-tree-outline/releases) page.
 2. In Joplin, go to **Tools > Options > Plugins**.
 3. Click the gear icon (`⚙`) next to *Manage your plugins* and choose **Install from file**.
 4. Select the `.jpl` file and restart Joplin.
