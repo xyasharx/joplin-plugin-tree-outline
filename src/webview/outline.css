@@ -131,7 +131,7 @@ body[dir="rtl"], .outline-container[dir="rtl"] {
 /* Tree Scroll Container with Momentum Touch Support */
 .outline-tree {
   flex: 1 1 auto;
-  min-height: 0; /* Allows flexbox to shrink and enable vertical scrolling */
+  min-height: 0; /* Critical: allows flex container to scroll on mobile */
   overflow-y: auto;
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch; /* Momentum scrolling */
@@ -171,7 +171,7 @@ body[dir="rtl"], .outline-container[dir="rtl"] {
   background-color: var(--nav-item-background-hover);
 }
 
-/* Typography Hierarchy */
+/* Standard Typography Hierarchy */
 .tree-item-self[data-level="1"] {
   font-size: 13.5px;
   font-weight: 600;
