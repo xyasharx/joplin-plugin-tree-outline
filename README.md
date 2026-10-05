@@ -28,7 +28,7 @@ TreeOutline is an outline and table of contents panel for Joplin desktop and mob
 3. Click **Install** and restart Joplin.
 
 ### Manual Installation
-1. Download the latest `com.yourname.treeoutline.jpl` file from the [Releases](https://github.com/your-username/joplin-plugin-tree-outline/releases) page.
+1. Download the latest `com.yourname.treeoutline.jpl` file from the [Releases](https://github.com/xyasharx/joplin-plugin-tree-outline/releases) page.
 2. In Joplin, go to **Tools > Options > Plugins**.
 3. Click the gear icon (`⚙`) next to *Manage your plugins* and choose **Install from file**.
 4. Select the `.jpl` file and restart Joplin.
@@ -50,7 +50,7 @@ Requirements: Node.js (v20+) and npm.
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-username/joplin-plugin-tree-outline.git
+git clone https://github.com/xyasharx/joplin-plugin-tree-outline.git
 cd joplin-plugin-tree-outline
 
 # Install dependencies
@@ -60,7 +60,7 @@ npm install
 npm run dist
 ```
 
-The compiled package will be created at `publish/com.yourname.treeoutline.jpl`.
+The compiled package will be created at `publish/com.xyasharx.treeoutline.jpl`.
 
 ---
 
