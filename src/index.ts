@@ -12,6 +12,15 @@ const panelHtml = `
           <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
         </svg>
       </div>
+      <div class="clickable-icon nav-action-button" id="wrap-toggle-btn" title="Toggle text wrap">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="3" y1="6" x2="21" y2="6"></line>
+          <line x1="3" y1="12" x2="15" y2="12"></line>
+          <polyline points="16 10 19 12 16 14"></polyline>
+          <path d="M19 12h-4a3 3 0 0 0-3 3v1"></path>
+          <line x1="3" y1="18" x2="10" y2="18"></line>
+        </svg>
+      </div>
       <div class="clickable-icon nav-action-button" id="collapse-all-btn" title="Collapse / Expand all">
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M7 11V7h4"></path>
@@ -106,7 +115,6 @@ joplin.plugins.register({
         const line = typeof message.line === 'number' ? message.line : 0;
         const slug = message.slug || '';
 
-        // Query which panes are currently open (e.g. ['viewer'], ['editor'], or ['editor', 'viewer'])
         let visiblePanes: string[] = ['viewer'];
         try {
           const panes = await joplin.settings.globalValue('noteVisiblePanes');
@@ -115,7 +123,7 @@ joplin.plugins.register({
           visiblePanes = ['viewer'];
         }
 
-        // 1. Viewer is active (Markdown Viewer mode OR Split View OR Mobile)
+        // 1. Viewer navigation
         if (visiblePanes.includes('viewer') || isMobile) {
           if (slug) {
             try {
@@ -124,7 +132,7 @@ joplin.plugins.register({
           }
         }
 
-        // 2. Editor is active (Editor Only OR Split View)
+        // 2. Editor navigation
         if (visiblePanes.includes('editor') && !isMobile) {
           try {
             await joplin.commands.execute('editor.execCommand', {
