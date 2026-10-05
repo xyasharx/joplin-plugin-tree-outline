@@ -2,6 +2,7 @@ import joplin from 'api';
 import { parseHeadings, isTextRtl } from './parser';
 
 const panelHtml = `
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <div class="outline-container" id="outline-container" dir="auto">
   <div class="nav-header">
     <div class="nav-buttons-container">
@@ -17,12 +18,6 @@ const panelHtml = `
           <path d="M11 7L4 14"></path>
           <path d="M17 13v4h-4"></path>
           <path d="M13 17l7-7"></path>
-        </svg>
-      </div>
-      <div class="clickable-icon nav-action-button mobile-only-btn" id="close-panel-btn" title="Close Outline">
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="18" y1="6" x2="6" y2="18"></line>
-          <line x1="6" y1="6" x2="18" y2="18"></line>
         </svg>
       </div>
     </div>
@@ -107,48 +102,46 @@ joplin.plugins.register({
         }
 
         return { changed: false };
-      } else if (message.type === 'closePanel') {
-        try {
-          await joplin.views.panels.hide(panel);
-        } catch (e) {}
       } else if (message.type === 'jumpToHeading') {
         const line = typeof message.line === 'number' ? message.line : 0;
         const slug = message.slug || '';
 
-        // 1. Jump in CodeMirror (Raw Editor and Split View)
         try {
-          await joplin.commands.execute('editor.focus');
-          // Note: CodeMirror requires 'ch', not 'char'
-          await joplin.commands.execute('editor.execCommand', {
-            name: 'setCursor',
-            args: [{ line: line, ch: 0 }],
-          });
-          await joplin.commands.execute('editor.execCommand', {
-            name: 'scrollIntoView',
-            args: [{ line: line, ch: 0 }, 150], // 150px vertical margin
-          });
-        } catch (e) {}
-
-        // 2. Jump in Markdown Viewer (Rendered HTML Viewer Mode)
-        if (slug) {
+          // Check if user is in CodeMirror Markdown Editor or Rendered Viewer
+          let isCodeView = false;
           try {
-            await joplin.commands.execute('scrollToHash', slug);
-          } catch (e) {}
+            isCodeView = await joplin.settings.globalValue('editor.codeView');
+          } catch (e) {
+            isCodeView = !isMobile;
+          }
 
-          try {
-            await joplin.commands.execute('scrollToHash', '#' + slug);
-          } catch (e) {}
-
-          try {
-            await joplin.commands.execute('scrollToHash', encodeURIComponent(slug));
-          } catch (e) {}
-        }
-
-        // 3. On mobile: auto-close dialog after jumping
-        if (isMobile) {
-          try {
-            await joplin.views.panels.hide(panel);
-          } catch (e) {}
+          if (isCodeView) {
+            // Mode 1: Markdown Raw Editor (CodeMirror) or Split View
+            await joplin.commands.execute('editor.focus');
+            await joplin.commands.execute('editor.execCommand', {
+              name: 'setCursor',
+              args: [{ line: line, ch: 0 }],
+            });
+            await joplin.commands.execute('editor.execCommand', {
+              name: 'scrollIntoView',
+              args: [{ line: line, ch: 0 }, 150],
+            });
+            if (slug) {
+              await joplin.commands.execute('scrollToHash', slug);
+            }
+          } else {
+            // Mode 2: Markdown Viewer (HTML Rendered Mode / Mobile)
+            // Call scrollToHash once directly with exact slug
+            if (slug) {
+              await joplin.commands.execute('scrollToHash', slug);
+            }
+          }
+        } catch (e) {
+          if (slug) {
+            try {
+              await joplin.commands.execute('scrollToHash', slug);
+            } catch (err) {}
+          }
         }
       }
     });
