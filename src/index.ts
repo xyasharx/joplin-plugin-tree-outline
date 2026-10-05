@@ -105,35 +105,44 @@ joplin.plugins.register({
       } else if (message.type === 'jumpToHeading') {
         const line = typeof message.line === 'number' ? message.line : 0;
         const slug = message.slug || '';
-        const note = await getSelectedNoteData();
-        const noteId = note ? note.id : '';
 
-        // Channel 1: Desktop Markdown Viewer (scrollToHash)
-        if (!isMobile && slug) {
-          try {
-            await joplin.commands.execute('scrollToHash', slug);
-          } catch (e) {}
-        }
-
-        // Channel 2: Universal In-Note Link Router (Works on Mobile Android/iOS & Desktop)
-        if (noteId && slug) {
-          try {
-            await joplin.commands.execute('openItem', `:/${noteId}#${slug}`);
-          } catch (e) {}
-        }
-
-        // Channel 3: CodeMirror Editor (For Editor Mode & Split View)
         try {
-          await joplin.commands.execute('editor.focus');
-          await joplin.commands.execute('editor.execCommand', {
-            name: 'setCursor',
-            args: [{ line: line, ch: 0 }],
-          });
-          await joplin.commands.execute('editor.execCommand', {
-            name: 'scrollIntoView',
-            args: [{ line: line, ch: 0 }, 150],
-          });
-        } catch (e) {}
+          let isCodeView = false;
+          try {
+            isCodeView = await joplin.settings.globalValue('editor.codeView');
+          } catch (e) {
+            isCodeView = !isMobile;
+          }
+
+          if (isCodeView) {
+            // Mode A: Markdown Editor (CodeMirror) or Split View
+            await joplin.commands.execute('editor.focus');
+            await joplin.commands.execute('editor.execCommand', {
+              name: 'setCursor',
+              args: [{ line: line, ch: 0 }],
+            });
+            await joplin.commands.execute('editor.execCommand', {
+              name: 'scrollIntoView',
+              args: [{ line: line, ch: 0 }, 150],
+            });
+
+            if (slug) {
+              await joplin.commands.execute('scrollToHash', slug);
+            }
+          } else {
+            // Mode B: Markdown Viewer (HTML Rendered Mode & Mobile)
+            // Dispatches directly to scrollToHash without focus collisions
+            if (slug) {
+              await joplin.commands.execute('scrollToHash', slug);
+            }
+          }
+        } catch (e) {
+          if (slug) {
+            try {
+              await joplin.commands.execute('scrollToHash', slug);
+            } catch (err) {}
+          }
+        }
       }
     });
 
