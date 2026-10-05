@@ -1,3 +1,5 @@
+import uslug from '@joplin/fork-uslug';
+
 export interface HeadingNode {
   id: string;
   level: number;
@@ -11,23 +13,6 @@ export interface HeadingNode {
 export function isTextRtl(text: string): boolean {
   const rtlRegex = /[\u0590-\u05FF\u0600-\u06FF\u0700-\u074F\u0750-\u077F\u0780-\u07BF\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]/;
   return rtlRegex.test(text);
-}
-
-const rControl = /[\u0000-\u001f]/g;
-const rSpecial = /[\s~!@#$%^&*()+=—–\-_[\]{};:'",.<>?/\\|`^«»؛،؟…]+/g;
-
-/**
- * Universal Joplin-compliant slugifier matching Joplin's MarkdownIt renderer
- */
-export function uslug(text: string): string {
-  return text
-    .toString()
-    .trim()
-    .toLowerCase()
-    .replace(rControl, '')
-    .replace(rSpecial, '-') // Replace punctuation runs with single hyphen
-    .replace(/-+/g, '-')    // Collapse consecutive hyphens
-    .replace(/^-+|-+$/g, '');
 }
 
 export function cleanHeadingText(raw: string): string {
@@ -44,7 +29,7 @@ export function parseHeadings(markdown: string): HeadingNode[] {
   const flatNodes: HeadingNode[] = [];
   let inCodeBlock = false;
 
-  // Official Joplin duplicate slug registry: first is "name", second is "name-2"
+  // Joplin official duplicate slug registry
   const slugs: { [key: string]: boolean } = {};
   const getJoplinSlug = (headerText: string): string => {
     const s = uslug(headerText);
@@ -100,7 +85,7 @@ export function parseHeadings(markdown: string): HeadingNode[] {
             id: `heading-${i - 1}-${flatNodes.length}`,
             level,
             text,
-            rawText,
+            rawText: lines[i - 1].trim(),
             line: i - 1,
             slug: getJoplinSlug(text),
             children: [],
