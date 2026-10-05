@@ -128,14 +128,14 @@ body[dir="rtl"], .outline-container[dir="rtl"] {
   padding: 2px 4px;
 }
 
-/* Scroll Container with Momentum Touch Support */
+/* Tree Scroll Container with Momentum Touch Support */
 .outline-tree {
   flex: 1 1 auto;
-  min-height: 0; /* Critical: allows flex container to scroll on mobile */
+  min-height: 0; /* Allows flexbox to shrink and enable vertical scrolling */
   overflow-y: auto;
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch; /* Momentum scrolling */
-  touch-action: pan-y; /* Permits vertical touch gestures */
+  touch-action: pan-y; /* Permits touch scroll swipe gestures */
   padding: 6px 8px calc(16px + env(safe-area-inset-bottom, 10px)) 8px;
   box-sizing: border-box;
 }
@@ -171,7 +171,7 @@ body[dir="rtl"], .outline-container[dir="rtl"] {
   background-color: var(--nav-item-background-hover);
 }
 
-/* Standard Typography Hierarchy */
+/* Typography Hierarchy */
 .tree-item-self[data-level="1"] {
   font-size: 13.5px;
   font-weight: 600;
