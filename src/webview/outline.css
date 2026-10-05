@@ -8,14 +8,15 @@
   --font-interface: -apple-system, BlinkMacSystemFont, "Vazirmatn", "Sahel", "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans", "Microsoft YaHei", "Noto Sans", sans-serif;
 }
 
-body {
+html, body {
   margin: 0;
   padding: 0;
+  height: 100%;
   background-color: var(--joplin-background-color, transparent);
   color: var(--nav-item-color);
   font-family: var(--font-interface);
   user-select: none;
-  overflow-x: hidden;
+  overflow: hidden;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;
@@ -36,17 +37,17 @@ body[dir="rtl"], .outline-container[dir="rtl"] {
 .outline-container {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  height: 100%;
   box-sizing: border-box;
 }
 
 .outline-status {
-  padding: 32px 16px;
+  padding: 24px 14px;
   text-align: center;
   color: var(--joplin-color, #888);
   opacity: 0.65;
-  font-size: 13px;
-  line-height: 1.6;
+  font-size: 12.5px;
+  line-height: 1.5;
 }
 
 /* Pinned Header */
@@ -55,7 +56,7 @@ body[dir="rtl"], .outline-container[dir="rtl"] {
   top: 0;
   z-index: 20;
   background: var(--joplin-background-color, #fff);
-  padding: 8px 12px;
+  padding: 6px 10px;
   border-bottom: 1px solid var(--joplin-divider-color, rgba(125, 125, 125, 0.15));
   flex-shrink: 0;
 }
@@ -64,16 +65,16 @@ body[dir="rtl"], .outline-container[dir="rtl"] {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 8px;
+  gap: 6px;
 }
 
 .clickable-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
-  border-radius: 6px;
+  width: 26px;
+  height: 26px;
+  border-radius: 5px;
   cursor: pointer;
   color: inherit;
   opacity: 0.7;
@@ -85,19 +86,11 @@ body[dir="rtl"], .outline-container[dir="rtl"] {
   background-color: var(--nav-item-background-hover);
 }
 
-/* Close button shown on mobile */
-.mobile-only-btn {
-  display: none;
-}
-body.is-mobile .mobile-only-btn {
-  display: inline-flex;
-}
-
 /* Search Box */
 .search-input-container {
   display: none;
   position: relative;
-  margin-top: 8px;
+  margin-top: 6px;
 }
 
 .search-input-container.is-visible {
@@ -107,44 +100,43 @@ body.is-mobile .mobile-only-btn {
 
 .search-input-container input {
   width: 100%;
-  padding: 8px 30px 8px 12px;
-  font-size: 13px;
+  padding: 5px 24px 5px 8px;
+  font-size: 12px;
   font-family: inherit;
   border: 1px solid var(--joplin-divider-color, rgba(125, 125, 125, 0.25));
-  border-radius: 6px;
+  border-radius: 5px;
   background: var(--joplin-background-color, #fff);
   color: inherit;
   outline: none;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 [dir="rtl"] .search-input-container input {
-  padding: 8px 12px 8px 30px;
+  padding: 5px 8px 5px 24px;
 }
 
 .search-input-container input:focus {
   border-color: var(--nav-accent);
-  box-shadow: 0 0 0 2px rgba(112, 93, 207, 0.15);
 }
 
 .search-clear-btn {
   position: absolute;
   inset-inline-end: 8px;
   cursor: pointer;
-  font-size: 16px;
+  font-size: 14px;
   color: #888;
   display: none;
-  padding: 4px;
+  padding: 2px 4px;
 }
 
 /* Tree Scroll Container */
 .outline-tree {
-  padding: 8px 10px calc(24px + env(safe-area-inset-bottom, 16px)) 10px;
+  padding: 6px 8px calc(16px + env(safe-area-inset-bottom, 10px)) 8px;
   overflow-y: auto;
   flex-grow: 1;
+  height: 100%;
+  box-sizing: border-box;
 }
 
-/* Custom Minimal Scrollbar */
 .outline-tree::-webkit-scrollbar {
   width: 4px;
 }
@@ -157,16 +149,16 @@ body.is-mobile .mobile-only-btn {
   position: relative;
 }
 
-/* Individual Heading Row */
+/* Individual Heading Row - Standard Clean Sizing */
 .tree-item-self {
   display: flex;
   align-items: center;
-  padding: 5px 6px;
-  margin: 1.5px 0;
-  border-radius: 6px;
+  padding: 3.5px 6px;
+  margin: 1px 0;
+  border-radius: 5px;
   cursor: pointer;
-  line-height: 1.6;
-  min-height: 32px;
+  line-height: 1.5;
+  min-height: 28px;
   transition: background-color 0.12s ease;
   width: 100%;
   box-sizing: border-box;
@@ -176,17 +168,17 @@ body.is-mobile .mobile-only-btn {
   background-color: var(--nav-item-background-hover);
 }
 
-/* Hierarchy Typography */
+/* Standard Typography Hierarchy */
 .tree-item-self[data-level="1"] {
-  font-size: 14.5px;
-  font-weight: 650;
-  margin-top: 8px;
+  font-size: 13.5px;
+  font-weight: 600;
+  margin-top: 6px;
 }
 
 .tree-item-self[data-level="2"] {
-  font-size: 13.5px;
+  font-size: 13px;
   font-weight: 550;
-  margin-top: 3px;
+  margin-top: 2px;
 }
 
 .tree-item-self[data-level="3"] {
@@ -200,7 +192,7 @@ body.is-mobile .mobile-only-btn {
 .tree-item-self[data-level="6"] {
   font-size: 12px;
   font-weight: 400;
-  opacity: 0.88;
+  opacity: 0.85;
 }
 
 /* Active Highlight */
@@ -209,8 +201,8 @@ body.is-mobile .mobile-only-btn {
   border-inline-start: 3px solid var(--nav-accent);
   border-start-start-radius: 1px;
   border-end-start-radius: 1px;
-  border-start-end-radius: 6px;
-  border-end-end-radius: 6px;
+  border-start-end-radius: 5px;
+  border-end-end-radius: 5px;
   font-weight: 600 !important;
   opacity: 1 !important;
 }
@@ -220,8 +212,8 @@ body.is-mobile .mobile-only-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
   margin-inline-end: 4px;
   flex-shrink: 0;
   border-radius: 4px;
@@ -230,8 +222,8 @@ body.is-mobile .mobile-only-btn {
 }
 
 .collapse-icon svg {
-  width: 13px;
-  height: 13px;
+  width: 12px;
+  height: 12px;
 }
 
 [dir="ltr"] .tree-item.is-collapsed > .tree-item-self .collapse-icon {
@@ -260,9 +252,9 @@ body.is-mobile .mobile-only-btn {
 
 /* Indent Guidelines */
 .tree-item-children {
-  padding-inline-start: 14px;
+  padding-inline-start: 13px;
   border-inline-start: 1.5px solid var(--nav-indent-guide);
-  margin-inline-start: 8px;
+  margin-inline-start: 7px;
   transition: border-color 0.18s ease;
 }
 
@@ -280,42 +272,4 @@ body.is-mobile .mobile-only-btn {
   border-radius: 2px;
   padding: 0 2px;
   font-weight: 600;
-}
-
-/* ========================================================
-   TOUCH ERGONOMICS (Phone & Tablet Mode)
-   ======================================================== */
-@media (pointer: coarse), (max-width: 600px) {
-  .tree-item-self {
-    min-height: 38px; /* Thumb-friendly tap zone */
-    padding: 6px 8px;
-  }
-
-  .collapse-icon {
-    width: 28px;
-    height: 28px;
-    margin-inline-end: 6px;
-  }
-
-  .collapse-icon svg {
-    width: 15px;
-    height: 15px;
-  }
-
-  .tree-item-children {
-    padding-inline-start: 16px;
-    margin-inline-start: 10px;
-  }
-
-  .tree-item-self[data-level="1"] {
-    font-size: 15.5px;
-  }
-
-  .tree-item-self[data-level="2"] {
-    font-size: 14.5px;
-  }
-
-  .tree-item-self[data-level="3"] {
-    font-size: 13.5px;
-  }
 }
