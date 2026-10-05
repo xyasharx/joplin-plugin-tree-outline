@@ -1,6 +1,5 @@
 /* global webviewApi */
 
-// Universal reference to Joplin's webview API across all platforms
 const api = typeof webviewApi !== 'undefined' ? webviewApi : (window.webviewApi || null);
 
 let renderedNoteId = '';
@@ -12,18 +11,13 @@ let activeHeadingId = null;
 function getTreeContainer() {
   return document.getElementById('outline-tree');
 }
-
 function getSearchInput() {
   return document.getElementById('search-input');
 }
-
 function getSearchContainer() {
   return document.getElementById('search-container');
 }
 
-/**
- * Dynamically updates writing direction (RTL or LTR) on the container and body.
- */
 function setDirection(isRtl) {
   const dir = isRtl ? 'rtl' : 'ltr';
   document.body.setAttribute('dir', dir);
@@ -31,29 +25,26 @@ function setDirection(isRtl) {
   if (container) container.setAttribute('dir', dir);
 }
 
-/**
- * Universal Search Normalizer:
- * 1. Strips European accents (é -> e, ä -> a)
- * 2. Removes Persian/Arabic ZWNJ (نیم‌فاصله) & Tashkeel (َ ِ ُ ً ٍ ٌ ّ ْ)
- * 3. Unifies Arabic & Persian letter variants (ي/ی, ك/ک, ة/ه)
- */
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
 function normalizeForSearch(str) {
   if (!str) return '';
   return str
     .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '') // Strip Latin accents
-    .replace(/[\u200B-\u200D\uFEFF]/g, '') // Remove zero-width non-joiners
-    .replace(/[\u064B-\u065F\u0670]/g, '') // Strip Arabic/Persian Tashkeel
-    .replace(/[يى]/g, 'ی') // Unify Arabic Yeh to Persian Ye
-    .replace(/[ك]/g, 'ک')  // Unify Arabic Kaf to Persian Keh
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[\u200B-\u200D\uFEFF]/g, '')
+    .replace(/[\u064B-\u065F\u0670]/g, '')
+    .replace(/[يى]/g, 'ی')
+    .replace(/[ك]/g, 'ک')
     .replace(/[ة]/g, 'ه')
     .toLowerCase()
     .trim();
 }
 
-/**
- * Recursively counts all headings across all nesting levels.
- */
 function countTotalHeadings(nodes) {
   let count = 0;
   for (const n of nodes) {
@@ -65,28 +56,13 @@ function countTotalHeadings(nodes) {
   return count;
 }
 
-/**
- * Binds UI toolbar button events cleanly once.
- */
 function initEventHandlers() {
   const searchToggleBtn = document.getElementById('search-toggle-btn');
   const searchContainer = getSearchContainer();
   const searchInput = getSearchInput();
   const searchClearBtn = document.getElementById('search-clear-btn');
   const collapseAllBtn = document.getElementById('collapse-all-btn');
-  const closePanelBtn = document.getElementById('close-panel-btn');
 
-  // Mobile dismiss button
-  if (closePanelBtn && !closePanelBtn.dataset.bound) {
-    closePanelBtn.dataset.bound = 'true';
-    closePanelBtn.addEventListener('click', () => {
-      if (api && api.postMessage) {
-        api.postMessage({ type: 'closePanel' });
-      }
-    });
-  }
-
-  // Toggle Search Bar
   if (searchToggleBtn && !searchToggleBtn.dataset.bound) {
     searchToggleBtn.dataset.bound = 'true';
     searchToggleBtn.addEventListener('click', () => {
@@ -100,7 +76,6 @@ function initEventHandlers() {
     });
   }
 
-  // Live filter input
   if (searchInput && !searchInput.dataset.bound) {
     searchInput.dataset.bound = 'true';
     searchInput.addEventListener('input', () => {
@@ -110,7 +85,6 @@ function initEventHandlers() {
     });
   }
 
-  // Clear search input
   if (searchClearBtn && !searchClearBtn.dataset.bound) {
     searchClearBtn.dataset.bound = 'true';
     searchClearBtn.addEventListener('click', () => {
@@ -121,7 +95,6 @@ function initEventHandlers() {
     });
   }
 
-  // Global Collapse / Expand All
   if (collapseAllBtn && !collapseAllBtn.dataset.bound) {
     collapseAllBtn.dataset.bound = 'true';
     collapseAllBtn.addEventListener('click', () => {
@@ -136,9 +109,6 @@ function initEventHandlers() {
   }
 }
 
-/**
- * Constructs a single heading row DOM element.
- */
 function createNodeElement(node, searchQuery) {
   const item = document.createElement('div');
   item.className = 'tree-item';
@@ -153,7 +123,6 @@ function createNodeElement(node, searchQuery) {
     self.classList.add('is-active');
   }
 
-  // Chevron Toggle Icon
   const icon = document.createElement('div');
   icon.className = 'collapse-icon';
   if (!node.children || node.children.length === 0) {
@@ -169,8 +138,6 @@ function createNodeElement(node, searchQuery) {
     item.classList.toggle('is-collapsed');
   });
 
-  // BiDi-isolated Text Container (<bdi>)
-  // Prevents mixed Persian/English punctuation and parentheses from flipping
   const inner = document.createElement('bdi');
   inner.className = 'tree-item-inner';
   inner.title = `${node.text} (H${node.level})`;
@@ -182,7 +149,7 @@ function createNodeElement(node, searchQuery) {
 
     if (matchIndex !== -1) {
       const matchLength = searchQuery.length;
-      inner.innerHTML = `${node.text.slice(0, matchIndex)}<span class="highlight-match">${node.text.slice(matchIndex, matchIndex + matchLength)}</span>${node.text.slice(matchIndex + matchLength)}`;
+      inner.innerHTML = `${escapeHtml(node.text.slice(0, matchIndex))}<span class="highlight-match">${escapeHtml(node.text.slice(matchIndex, matchIndex + matchLength))}</span>${escapeHtml(node.text.slice(matchIndex + matchLength))}`;
     } else {
       inner.textContent = node.text;
     }
@@ -190,9 +157,7 @@ function createNodeElement(node, searchQuery) {
     inner.textContent = node.text;
   }
 
-  // Jump to Heading on Row Click
   self.addEventListener('click', (e) => {
-    // If the user tapped the chevron toggle, only fold/unfold without jumping
     if (e.target && e.target.closest('.collapse-icon')) {
       return;
     }
@@ -215,7 +180,6 @@ function createNodeElement(node, searchQuery) {
   self.appendChild(inner);
   item.appendChild(self);
 
-  // Render Sub-branches
   if (node.children && node.children.length > 0) {
     const childrenContainer = document.createElement('div');
     childrenContainer.className = 'tree-item-children';
@@ -228,9 +192,6 @@ function createNodeElement(node, searchQuery) {
   return item;
 }
 
-/**
- * Renders the hierarchical tree structure.
- */
 function renderTree(headings, query = '') {
   initEventHandlers();
   const treeContainer = getTreeContainer();
@@ -274,9 +235,6 @@ function renderTree(headings, query = '') {
   }
 }
 
-/**
- * Active Heartbeat Synchronization with Joplin
- */
 async function syncOutline(force = false) {
   if (!api || !api.postMessage) return;
 
@@ -293,22 +251,15 @@ async function syncOutline(force = false) {
       renderedBodyLength = data.bodyLength !== undefined ? data.bodyLength : -1;
       activeHeadingId = null;
 
-      if (data.isMobile) {
-        document.body.classList.add('is-mobile');
-      }
-
       setDirection(data.isRtl);
       allHeadings = data.headings || [];
 
       const searchInput = getSearchInput();
       renderTree(allHeadings, searchInput ? searchInput.value.trim() : '');
     }
-  } catch (err) {
-    // Suppress transient IPC busy errors
-  }
+  } catch (err) {}
 }
 
-// 1. Instant Push trigger when Joplin notifies a switch
 if (api && api.onMessage) {
   api.onMessage((msg) => {
     if (msg.type === 'noteSwitched') {
@@ -317,10 +268,8 @@ if (api && api.onMessage) {
   });
 }
 
-// 2. Initial fetch immediately on webview load
 syncOutline(true);
 
-// 3. Heartbeat check every 350ms ensures guaranteed note switching
 setInterval(() => {
   syncOutline(false);
 }, 350);
