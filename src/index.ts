@@ -130,8 +130,7 @@ joplin.plugins.register({
               await joplin.commands.execute('scrollToHash', slug);
             }
           } else {
-            // Mode B: Markdown Viewer (HTML Rendered Mode & Mobile)
-            // Dispatches directly to scrollToHash without focus collisions
+            // Mode B: Markdown Viewer (Rendered HTML Mode on Desktop & Mobile)
             if (slug) {
               await joplin.commands.execute('scrollToHash', slug);
             }
