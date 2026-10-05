@@ -62,7 +62,30 @@ function initEventHandlers() {
   const searchInput = getSearchInput();
   const searchClearBtn = document.getElementById('search-clear-btn');
   const collapseAllBtn = document.getElementById('collapse-all-btn');
+  const wrapToggleBtn = document.getElementById('wrap-toggle-btn');
+  const container = document.getElementById('outline-container');
 
+  // Load Saved Wrap Preference (Defaults to true on phones/narrow screens)
+  if (container) {
+    const savedWrap = localStorage.getItem('treeOutline_isWrapped');
+    let isWrapped = savedWrap !== null ? savedWrap === 'true' : window.innerWidth <= 650;
+    
+    if (isWrapped) {
+      container.classList.add('is-wrapped');
+      if (wrapToggleBtn) wrapToggleBtn.classList.add('is-active');
+    }
+
+    if (wrapToggleBtn && !wrapToggleBtn.dataset.bound) {
+      wrapToggleBtn.dataset.bound = 'true';
+      wrapToggleBtn.addEventListener('click', () => {
+        const currentlyWrapped = container.classList.toggle('is-wrapped');
+        wrapToggleBtn.classList.toggle('is-active', currentlyWrapped);
+        localStorage.setItem('treeOutline_isWrapped', currentlyWrapped ? 'true' : 'false');
+      });
+    }
+  }
+
+  // Toggle Search Bar
   if (searchToggleBtn && !searchToggleBtn.dataset.bound) {
     searchToggleBtn.dataset.bound = 'true';
     searchToggleBtn.addEventListener('click', () => {
@@ -76,6 +99,7 @@ function initEventHandlers() {
     });
   }
 
+  // Live filter input
   if (searchInput && !searchInput.dataset.bound) {
     searchInput.dataset.bound = 'true';
     searchInput.addEventListener('input', () => {
@@ -85,6 +109,7 @@ function initEventHandlers() {
     });
   }
 
+  // Clear search input
   if (searchClearBtn && !searchClearBtn.dataset.bound) {
     searchClearBtn.dataset.bound = 'true';
     searchClearBtn.addEventListener('click', () => {
@@ -95,6 +120,7 @@ function initEventHandlers() {
     });
   }
 
+  // Collapse / Expand All
   if (collapseAllBtn && !collapseAllBtn.dataset.bound) {
     collapseAllBtn.dataset.bound = 'true';
     collapseAllBtn.addEventListener('click', () => {
