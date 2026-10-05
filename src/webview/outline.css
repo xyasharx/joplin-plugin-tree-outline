@@ -16,11 +16,9 @@ html, body {
   color: var(--nav-item-color);
   font-family: var(--font-interface);
   user-select: none;
-  overflow: hidden;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;
-  touch-action: manipulation;
 }
 
 /* Directional Base */
@@ -37,7 +35,9 @@ body[dir="rtl"], .outline-container[dir="rtl"] {
 .outline-container {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  height: 100vh;
+  max-height: 100vh;
+  overflow: hidden;
   box-sizing: border-box;
 }
 
@@ -128,12 +128,15 @@ body[dir="rtl"], .outline-container[dir="rtl"] {
   padding: 2px 4px;
 }
 
-/* Tree Scroll Container */
+/* Scroll Container with Momentum Touch Support */
 .outline-tree {
-  padding: 6px 8px calc(16px + env(safe-area-inset-bottom, 10px)) 8px;
+  flex: 1 1 auto;
+  min-height: 0; /* Critical: allows flex container to scroll on mobile */
   overflow-y: auto;
-  flex-grow: 1;
-  height: 100%;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch; /* Momentum scrolling */
+  touch-action: pan-y; /* Permits vertical touch gestures */
+  padding: 6px 8px calc(16px + env(safe-area-inset-bottom, 10px)) 8px;
   box-sizing: border-box;
 }
 
@@ -149,7 +152,7 @@ body[dir="rtl"], .outline-container[dir="rtl"] {
   position: relative;
 }
 
-/* Individual Heading Row - Standard Clean Sizing */
+/* Individual Heading Row */
 .tree-item-self {
   display: flex;
   align-items: center;
