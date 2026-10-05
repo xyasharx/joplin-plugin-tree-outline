@@ -13,16 +13,18 @@ export function isTextRtl(text: string): boolean {
   return rtlRegex.test(text);
 }
 
-/**
- * Exact implementation of `uslug` matching Joplin's markdown-it-anchor:
- * Compresses any run of punctuation and whitespace into a single hyphen.
- */
+// Exact character rules matching Joplin's uslug renderer
+const rControl = /[\u0000-\u001f]/g;
+const rSpecial = /[\s~!@#$%^&*()+=—[\]{};:'",.<>?/\\|`^«»؛،]+|_+/g;
+
 export function uslug(text: string): string {
   return text
-    .normalize('NFKC')
+    .toString()
+    .trim()
     .toLowerCase()
-    .replace(/[^\p{L}\p{N}]+/gu, '-') // Replace non-alphanumeric with hyphen
-    .replace(/^-+|-+$/g, '');        // Remove leading and trailing hyphens
+    .replace(rControl, '')
+    .replace(rSpecial, '-')
+    .replace(/^-+|-+$/g, '');
 }
 
 export function cleanHeadingText(raw: string): string {
@@ -38,7 +40,19 @@ export function parseHeadings(markdown: string): HeadingNode[] {
   const lines = markdown.split(/\r?\n/);
   const flatNodes: HeadingNode[] = [];
   let inCodeBlock = false;
-  const slugCounts: { [slug: string]: number } = {};
+
+  // Joplin duplicate slug registry: first is "name", second is "name-2", third is "name-3"
+  const slugs: { [key: string]: boolean } = {};
+  const getJoplinSlug = (headerText: string): string => {
+    const s = uslug(headerText);
+    let num = 1;
+    while (slugs[s + (num > 1 ? '-' + num : '')]) {
+      num++;
+    }
+    const finalSlug = s + (num > 1 ? '-' + num : '');
+    slugs[finalSlug] = true;
+    return finalSlug;
+  };
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
@@ -50,36 +64,27 @@ export function parseHeadings(markdown: string): HeadingNode[] {
     }
     if (inCodeBlock) continue;
 
-    // 1. ATX headings
+    // 1. ATX headings (#)
     const atxMatch = line.match(/^\s{0,3}(#{1,6})\s+(.*)$/);
     if (atxMatch) {
       const level = atxMatch[1].length;
       const rawText = atxMatch[2].replace(/\s+#+\s*$/, '').trim();
       const text = cleanHeadingText(rawText);
       if (text) {
-        const baseSlug = uslug(text);
-        let slug = baseSlug;
-        if (slugCounts[baseSlug] !== undefined) {
-          slugCounts[baseSlug]++;
-          slug = `${baseSlug}-${slugCounts[baseSlug]}`;
-        } else {
-          slugCounts[baseSlug] = 0;
-        }
-
         flatNodes.push({
           id: `heading-${i}-${flatNodes.length}`,
           level,
           text,
           rawText,
           line: i,
-          slug,
+          slug: getJoplinSlug(text),
           children: [],
         });
       }
       continue;
     }
 
-    // 2. Setext headings
+    // 2. Setext headings (=== or ---)
     if (i > 0 && !lines[i - 1].trim().startsWith('#') && lines[i - 1].trim().length > 0) {
       let level = 0;
       if (/^={2,}\s*$/.test(trimmed)) level = 1;
@@ -88,22 +93,13 @@ export function parseHeadings(markdown: string): HeadingNode[] {
       if (level > 0) {
         const text = cleanHeadingText(lines[i - 1]);
         if (text) {
-          const baseSlug = uslug(text);
-          let slug = baseSlug;
-          if (slugCounts[baseSlug] !== undefined) {
-            slugCounts[baseSlug]++;
-            slug = `${baseSlug}-${slugCounts[baseSlug]}`;
-          } else {
-            slugCounts[baseSlug] = 0;
-          }
-
           flatNodes.push({
             id: `heading-${i - 1}-${flatNodes.length}`,
             level,
             text,
             rawText: lines[i - 1].trim(),
             line: i - 1,
-            slug,
+            slug: getJoplinSlug(text),
             children: [],
           });
         }
@@ -111,7 +107,6 @@ export function parseHeadings(markdown: string): HeadingNode[] {
     }
   }
 
-  // Construct recursive tree
   const rootNodes: HeadingNode[] = [];
   const stack: HeadingNode[] = [];
 
