@@ -1,6 +1,6 @@
 {
   "name": "joplin-plugin-tree-outline",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Hierarchical table of contents and outline panel for Joplin.",
   "main": "dist/index.js",
   "scripts": {
