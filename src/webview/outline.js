@@ -1,24 +1,20 @@
 /* global webviewApi */
 
-// Universal reference to Joplin's webview API across all platforms
-const api = typeof webviewApi !== 'undefined' ? webviewApi : (window.webviewApi || null);
+var api = typeof webviewApi !== 'undefined' ? webviewApi : (window.webviewApi || null);
 
 /**
- * Injects Google Fonts & Vazirmatn stylesheets directly into document.head via DOM API.
- * This bypasses the innerHTML parsing limitation in Android & iOS WebViews.
+ * Injects Google Fonts & Vazirmatn stylesheets into document.head via DOM API.
  */
 function ensureFontsLoaded() {
   if (document.getElementById('outline-fonts-google')) return;
 
-  // 1. Google Fonts Bundle
-  const gFont = document.createElement('link');
+  var gFont = document.createElement('link');
   gFont.id = 'outline-fonts-google';
   gFont.rel = 'stylesheet';
   gFont.href = 'https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;600&family=Heebo:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&family=Lora:ital,wght@0,400;0,600&family=Noto+Sans+Arabic:wght@400;600;700&family=Noto+Sans+Devanagari:wght@400;600&family=Noto+Sans+JP:wght@400;500;700&family=Noto+Sans+SC:wght@400;500;700&family=Roboto:wght@400;500;700&family=Vazirmatn:wght@400;500;600;700&display=swap';
   document.head.appendChild(gFont);
 
-  // 2. Official Vazirmatn Standalone CDN (Guarantees Vazirmatn loads even if Google Fonts is slow)
-  const vFont = document.createElement('link');
+  var vFont = document.createElement('link');
   vFont.id = 'outline-fonts-vazirmatn';
   vFont.rel = 'stylesheet';
   vFont.href = 'https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css';
@@ -27,11 +23,11 @@ function ensureFontsLoaded() {
 
 ensureFontsLoaded();
 
-let renderedNoteId = '';
-let renderedBodyLength = -1;
-let allHeadings = [];
-let isAllCollapsed = false;
-let activeHeadingId = null;
+var renderedNoteId = '';
+var renderedBodyLength = -1;
+var allHeadings = [];
+var isAllCollapsed = false;
+var activeHeadingId = null;
 
 function getTreeContainer() {
   return document.getElementById('outline-tree');
@@ -44,14 +40,14 @@ function getSearchContainer() {
 }
 
 function setDirection(isRtl) {
-  const dir = isRtl ? 'rtl' : 'ltr';
+  var dir = isRtl ? 'rtl' : 'ltr';
   document.body.setAttribute('dir', dir);
-  const container = document.getElementById('outline-container');
+  var container = document.getElementById('outline-container');
   if (container) container.setAttribute('dir', dir);
 }
 
 function escapeHtml(text) {
-  const div = document.createElement('div');
+  var div = document.createElement('div');
   div.textContent = text;
   return div.innerHTML;
 }
@@ -71,48 +67,53 @@ function normalizeForSearch(str) {
 }
 
 function countTotalHeadings(nodes) {
-  let count = 0;
-  for (const n of nodes) {
+  var count = 0;
+  for (var i = 0; i < nodes.length; i++) {
     count += 1;
-    if (n.children && n.children.length > 0) {
-      count += countTotalHeadings(n.children);
+    if (nodes[i].children && nodes[i].children.length > 0) {
+      count += countTotalHeadings(nodes[i].children);
     }
   }
   return count;
 }
 
 function applyFontPreset(presetKey) {
-  const container = document.getElementById('outline-container');
+  var container = document.getElementById('outline-container');
   if (!container) return;
 
-  const classesToRemove = Array.from(container.classList).filter(c => c.startsWith('override-'));
-  classesToRemove.forEach(c => container.classList.remove(c));
-
-  if (presetKey && presetKey !== 'auto') {
-    container.classList.add(`override-${presetKey}`);
+  var classes = Array.from(container.classList);
+  for (var i = 0; i < classes.length; i++) {
+    if (classes[i].indexOf('override-') === 0) {
+      container.classList.remove(classes[i]);
+    }
   }
 
-  document.querySelectorAll('.font-menu-item').forEach(item => {
-    item.classList.toggle('is-selected', item.dataset.font === presetKey);
-  });
+  if (presetKey && presetKey !== 'auto') {
+    container.classList.add('override-' + presetKey);
+  }
+
+  var items = document.querySelectorAll('.font-menu-item');
+  for (var j = 0; j < items.length; j++) {
+    items[j].classList.toggle('is-selected', items[j].getAttribute('data-font') === presetKey);
+  }
 }
 
 function initEventHandlers() {
-  const searchToggleBtn = document.getElementById('search-toggle-btn');
-  const searchContainer = getSearchContainer();
-  const searchInput = getSearchInput();
-  const searchClearBtn = document.getElementById('search-clear-btn');
-  const collapseAllBtn = document.getElementById('collapse-all-btn');
-  const wrapToggleBtn = document.getElementById('wrap-toggle-btn');
-  const fontToggleBtn = document.getElementById('font-toggle-btn');
-  const fontMenu = document.getElementById('font-menu');
-  const container = document.getElementById('outline-container');
+  var searchToggleBtn = document.getElementById('search-toggle-btn');
+  var searchContainer = getSearchContainer();
+  var searchInput = getSearchInput();
+  var searchClearBtn = document.getElementById('search-clear-btn');
+  var collapseAllBtn = document.getElementById('collapse-all-btn');
+  var wrapToggleBtn = document.getElementById('wrap-toggle-btn');
+  var fontToggleBtn = document.getElementById('font-toggle-btn');
+  var fontMenu = document.getElementById('font-menu');
+  var container = document.getElementById('outline-container');
 
   // Load Saved Wrap Preference
   if (container) {
-    const savedWrap = localStorage.getItem('treeOutline_isWrapped');
-    let isWrapped = savedWrap !== null ? savedWrap === 'true' : window.innerWidth <= 650;
-    
+    var savedWrap = localStorage.getItem('treeOutline_isWrapped');
+    var isWrapped = savedWrap !== null ? savedWrap === 'true' : window.innerWidth <= 650;
+
     if (isWrapped) {
       container.classList.add('is-wrapped');
       if (wrapToggleBtn) wrapToggleBtn.classList.add('is-active');
@@ -120,8 +121,8 @@ function initEventHandlers() {
 
     if (wrapToggleBtn && !wrapToggleBtn.dataset.bound) {
       wrapToggleBtn.dataset.bound = 'true';
-      wrapToggleBtn.addEventListener('click', () => {
-        const currentlyWrapped = container.classList.toggle('is-wrapped');
+      wrapToggleBtn.addEventListener('click', function () {
+        var currentlyWrapped = container.classList.toggle('is-wrapped');
         wrapToggleBtn.classList.toggle('is-active', currentlyWrapped);
         localStorage.setItem('treeOutline_isWrapped', currentlyWrapped ? 'true' : 'false');
       });
@@ -129,35 +130,36 @@ function initEventHandlers() {
   }
 
   // Typography Preset Menu
-  const savedFontPreset = localStorage.getItem('treeOutline_fontPreset') || 'auto';
+  var savedFontPreset = localStorage.getItem('treeOutline_fontPreset') || 'auto';
   applyFontPreset(savedFontPreset);
 
   if (fontToggleBtn && !fontToggleBtn.dataset.bound) {
     fontToggleBtn.dataset.bound = 'true';
-    fontToggleBtn.addEventListener('click', (e) => {
+    fontToggleBtn.addEventListener('click', function (e) {
       e.stopPropagation();
       if (fontMenu) fontMenu.classList.toggle('is-visible');
     });
 
-    document.addEventListener('click', () => {
+    document.addEventListener('click', function () {
       if (fontMenu) fontMenu.classList.remove('is-visible');
     });
 
-    document.querySelectorAll('.font-menu-item').forEach(item => {
-      item.addEventListener('click', (e) => {
+    var menuItems = document.querySelectorAll('.font-menu-item');
+    for (var m = 0; m < menuItems.length; m++) {
+      menuItems[m].addEventListener('click', function (e) {
         e.stopPropagation();
-        const font = item.dataset.font;
+        var font = this.getAttribute('data-font');
         applyFontPreset(font);
         localStorage.setItem('treeOutline_fontPreset', font);
         if (fontMenu) fontMenu.classList.remove('is-visible');
       });
-    });
+    }
   }
 
   // Toggle Search Bar
   if (searchToggleBtn && !searchToggleBtn.dataset.bound) {
     searchToggleBtn.dataset.bound = 'true';
-    searchToggleBtn.addEventListener('click', () => {
+    searchToggleBtn.addEventListener('click', function () {
       searchContainer.classList.toggle('is-visible');
       if (searchContainer.classList.contains('is-visible')) {
         searchInput.focus();
@@ -171,8 +173,8 @@ function initEventHandlers() {
   // Live filter input
   if (searchInput && !searchInput.dataset.bound) {
     searchInput.dataset.bound = 'true';
-    searchInput.addEventListener('input', () => {
-      const query = searchInput.value.trim();
+    searchInput.addEventListener('input', function () {
+      var query = searchInput.value.trim();
       if (searchClearBtn) searchClearBtn.style.display = query ? 'block' : 'none';
       renderTree(allHeadings, query);
     });
@@ -181,7 +183,7 @@ function initEventHandlers() {
   // Clear search input
   if (searchClearBtn && !searchClearBtn.dataset.bound) {
     searchClearBtn.dataset.bound = 'true';
-    searchClearBtn.addEventListener('click', () => {
+    searchClearBtn.addEventListener('click', function () {
       if (searchInput) searchInput.value = '';
       searchClearBtn.style.display = 'none';
       renderTree(allHeadings);
@@ -192,25 +194,25 @@ function initEventHandlers() {
   // Collapse / Expand All
   if (collapseAllBtn && !collapseAllBtn.dataset.bound) {
     collapseAllBtn.dataset.bound = 'true';
-    collapseAllBtn.addEventListener('click', () => {
+    collapseAllBtn.addEventListener('click', function () {
       isAllCollapsed = !isAllCollapsed;
-      const treeItems = document.querySelectorAll('.tree-item');
-      treeItems.forEach((item) => {
-        if (item.querySelector('.tree-item-children')) {
-          item.classList.toggle('is-collapsed', isAllCollapsed);
+      var treeItems = document.querySelectorAll('.tree-item');
+      for (var t = 0; t < treeItems.length; t++) {
+        if (treeItems[t].querySelector('.tree-item-children')) {
+          treeItems[t].classList.toggle('is-collapsed', isAllCollapsed);
         }
-      });
+      }
     });
   }
 }
 
 function createNodeElement(node, searchQuery) {
-  const item = document.createElement('div');
+  var item = document.createElement('div');
   item.className = 'tree-item';
   item.id = node.id;
   item.setAttribute('data-level', node.level);
 
-  const self = document.createElement('div');
+  var self = document.createElement('div');
   self.className = 'tree-item-self';
   self.setAttribute('data-level', node.level);
   self.setAttribute('data-script', node.script || 'latin');
@@ -219,33 +221,33 @@ function createNodeElement(node, searchQuery) {
     self.classList.add('is-active');
   }
 
-  const icon = document.createElement('div');
+  var icon = document.createElement('div');
   icon.className = 'collapse-icon';
   if (!node.children || node.children.length === 0) {
     icon.classList.add('is-hidden');
   }
-  icon.innerHTML = `
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-      <polyline points="6 9 12 15 18 9"></polyline>
-    </svg>`;
+  icon.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>';
 
-  icon.addEventListener('click', (e) => {
+  icon.addEventListener('click', function (e) {
     e.stopPropagation();
     item.classList.toggle('is-collapsed');
   });
 
-  const inner = document.createElement('bdi');
+  var inner = document.createElement('bdi');
   inner.className = 'tree-item-inner';
-  inner.title = `${node.text} (H${node.level})`;
+  inner.title = node.text + ' (H' + node.level + ')';
 
   if (searchQuery) {
-    const normText = normalizeForSearch(node.text);
-    const normQuery = normalizeForSearch(searchQuery);
-    const matchIndex = normText.indexOf(normQuery);
+    var normText = normalizeForSearch(node.text);
+    var normQuery = normalizeForSearch(searchQuery);
+    var matchIndex = normText.indexOf(normQuery);
 
     if (matchIndex !== -1) {
-      const matchLength = searchQuery.length;
-      inner.innerHTML = `${escapeHtml(node.text.slice(0, matchIndex))}<span class="highlight-match">${escapeHtml(node.text.slice(matchIndex, matchIndex + matchLength))}</span>${escapeHtml(node.text.slice(matchIndex + matchLength))}`;
+      var matchLength = searchQuery.length;
+      var before = escapeHtml(node.text.slice(0, matchIndex));
+      var matchText = escapeHtml(node.text.slice(matchIndex, matchIndex + matchLength));
+      var after = escapeHtml(node.text.slice(matchIndex + matchLength));
+      inner.innerHTML = before + '<span class="highlight-match">' + matchText + '</span>' + after;
     } else {
       inner.textContent = node.text;
     }
@@ -253,12 +255,15 @@ function createNodeElement(node, searchQuery) {
     inner.textContent = node.text;
   }
 
-  self.addEventListener('click', (e) => {
+  self.addEventListener('click', function (e) {
     if (e.target && e.target.closest('.collapse-icon')) {
       return;
     }
 
-    document.querySelectorAll('.tree-item-self.is-active').forEach((el) => el.classList.remove('is-active'));
+    var actives = document.querySelectorAll('.tree-item-self.is-active');
+    for (var a = 0; a < actives.length; a++) {
+      actives[a].classList.remove('is-active');
+    }
     self.classList.add('is-active');
     activeHeadingId = node.id;
 
@@ -277,10 +282,10 @@ function createNodeElement(node, searchQuery) {
   item.appendChild(self);
 
   if (node.children && node.children.length > 0) {
-    const childrenContainer = document.createElement('div');
+    var childrenContainer = document.createElement('div');
     childrenContainer.className = 'tree-item-children';
-    for (const child of node.children) {
-      childrenContainer.appendChild(createNodeElement(child, searchQuery));
+    for (var c = 0; c < node.children.length; c++) {
+      childrenContainer.appendChild(createNodeElement(node.children[c], searchQuery));
     }
     item.appendChild(childrenContainer);
   }
@@ -288,18 +293,89 @@ function createNodeElement(node, searchQuery) {
   return item;
 }
 
-function renderTree(headings, query = '') {
+function renderTree(headings, query) {
+  query = query || '';
   initEventHandlers();
-  const treeContainer = getTreeContainer();
-  const searchInput = getSearchInput();
+  var treeContainer = getTreeContainer();
+  var searchInput = getSearchInput();
   if (!treeContainer) return;
 
   treeContainer.innerHTML = '';
 
-  const totalCount = countTotalHeadings(headings || []);
+  var totalCount = countTotalHeadings(headings || []);
   if (searchInput && !query) {
-    searchInput.placeholder = totalCount > 0 ? `Filter ${totalCount} headings...` : 'Filter headings...';
+    searchInput.placeholder = totalCount > 0 ? ('Filter ' + totalCount + ' headings...') : 'Filter headings...';
   }
 
   if (!headings || headings.length === 0) {
-    treeContainer.innerHTML = '<div
+    treeContainer.innerHTML = '<div class="outline-status">No headings found in this note</div>';
+    return;
+  }
+
+  var normalizedQuery = normalizeForSearch(query);
+
+  function filterNodes(nodes) {
+    var filtered = [];
+    for (var i = 0; i < nodes.length; i++) {
+      var n = nodes[i];
+      var match = normalizeForSearch(n.text).indexOf(normalizedQuery) !== -1;
+      var childMatches = filterNodes(n.children || []);
+      if (match || childMatches.length > 0) {
+        var copyNode = Object.assign({}, n);
+        copyNode.children = childMatches;
+        filtered.push(copyNode);
+      }
+    }
+    return filtered;
+  }
+
+  var nodesToRender = query ? filterNodes(headings) : headings;
+  if (nodesToRender.length === 0) {
+    treeContainer.innerHTML = '<div class="outline-status">No matching headings found</div>';
+    return;
+  }
+
+  for (var k = 0; k < nodesToRender.length; k++) {
+    treeContainer.appendChild(createNodeElement(nodesToRender[k], query));
+  }
+}
+
+async function syncOutline(force) {
+  force = force || false;
+  if (!api || !api.postMessage) return;
+
+  try {
+    var data = await api.postMessage({
+      type: 'pollNote',
+      clientNoteId: renderedNoteId,
+      clientBodyLength: renderedBodyLength,
+      force: force,
+    });
+
+    if (data && data.changed) {
+      renderedNoteId = data.noteId;
+      renderedBodyLength = data.bodyLength !== undefined ? data.bodyLength : -1;
+      activeHeadingId = null;
+
+      setDirection(data.isRtl);
+      allHeadings = data.headings || [];
+
+      var searchInput = getSearchInput();
+      renderTree(allHeadings, searchInput ? searchInput.value.trim() : '');
+    }
+  } catch (err) {}
+}
+
+if (api && api.onMessage) {
+  api.onMessage(function (msg) {
+    if (msg.type === 'noteSwitched') {
+      syncOutline(true);
+    }
+  });
+}
+
+syncOutline(true);
+
+setInterval(function () {
+  syncOutline(false);
+}, 350);
