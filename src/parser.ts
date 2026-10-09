@@ -7,6 +7,7 @@ export interface HeadingNode {
   rawText: string;
   line: number;
   slug: string;
+  script: string; // 'persian' | 'arabic' | 'hebrew' | 'sc' | 'jp' | 'devanagari' | 'latin'
   children: HeadingNode[];
 }
 
@@ -15,11 +16,26 @@ export function isTextRtl(text: string): boolean {
   return rtlRegex.test(text);
 }
 
+/**
+ * Detects the specific linguistic script of a heading
+ */
+export function detectHeadingScript(text: string): string {
+  if (/[\u3040-\u309F\u30A0-\u30FF]/.test(text)) return 'jp';
+  if (/[\u4E00-\u9FFF]/.test(text)) return 'sc';
+  if (/[\u0900-\u097F]/.test(text)) return 'devanagari';
+  if (/[\u0590-\u05FF]/.test(text)) return 'hebrew';
+  if (/[\u0600-\u06FF\uFB50-\uFDFF\uFE70-\uFEFF]/.test(text)) {
+    if (/[گچپژکگی\u200C]/.test(text)) return 'persian';
+    return 'arabic';
+  }
+  return 'latin';
+}
+
 export function cleanHeadingText(raw: string): string {
   return raw
-    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // [link](url) -> link
-    .replace(/[*_~`==]/g, '')                 // Markdown bold, italic, code
-    .replace(/<[^>]*>/g, '')                  // HTML tags
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .replace(/[*_~`==]/g, '')
+    .replace(/<[^>]*>/g, '')
     .trim();
 }
 
@@ -29,7 +45,6 @@ export function parseHeadings(markdown: string): HeadingNode[] {
   const flatNodes: HeadingNode[] = [];
   let inCodeBlock = false;
 
-  // Joplin official duplicate slug registry
   const slugs: { [key: string]: number } = {};
   const getJoplinSlug = (headerText: string): string => {
     const s = uslug(headerText);
@@ -64,6 +79,7 @@ export function parseHeadings(markdown: string): HeadingNode[] {
           rawText,
           line: i,
           slug: getJoplinSlug(text),
+          script: detectHeadingScript(text),
           children: [],
         });
       }
@@ -86,6 +102,7 @@ export function parseHeadings(markdown: string): HeadingNode[] {
             rawText,
             line: i - 1,
             slug: getJoplinSlug(text),
+            script: detectHeadingScript(text),
             children: [],
           });
         }
