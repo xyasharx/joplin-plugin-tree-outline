@@ -1,6 +1,31 @@
 /* global webviewApi */
 
+// Universal reference to Joplin's webview API across all platforms
 const api = typeof webviewApi !== 'undefined' ? webviewApi : (window.webviewApi || null);
+
+/**
+ * Injects Google Fonts & Vazirmatn stylesheets directly into document.head via DOM API.
+ * This bypasses the innerHTML parsing limitation in Android & iOS WebViews.
+ */
+function ensureFontsLoaded() {
+  if (document.getElementById('outline-fonts-google')) return;
+
+  // 1. Google Fonts Bundle
+  const gFont = document.createElement('link');
+  gFont.id = 'outline-fonts-google';
+  gFont.rel = 'stylesheet';
+  gFont.href = 'https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;600&family=Heebo:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&family=Lora:ital,wght@0,400;0,600&family=Noto+Sans+Arabic:wght@400;600;700&family=Noto+Sans+Devanagari:wght@400;600&family=Noto+Sans+JP:wght@400;500;700&family=Noto+Sans+SC:wght@400;500;700&family=Roboto:wght@400;500;700&family=Vazirmatn:wght@400;500;600;700&display=swap';
+  document.head.appendChild(gFont);
+
+  // 2. Official Vazirmatn Standalone CDN (Guarantees Vazirmatn loads even if Google Fonts is slow)
+  const vFont = document.createElement('link');
+  vFont.id = 'outline-fonts-vazirmatn';
+  vFont.rel = 'stylesheet';
+  vFont.href = 'https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css';
+  document.head.appendChild(vFont);
+}
+
+ensureFontsLoaded();
 
 let renderedNoteId = '';
 let renderedBodyLength = -1;
@@ -60,7 +85,6 @@ function applyFontPreset(presetKey) {
   const container = document.getElementById('outline-container');
   if (!container) return;
 
-  // Clear existing override classes
   const classesToRemove = Array.from(container.classList).filter(c => c.startsWith('override-'));
   classesToRemove.forEach(c => container.classList.remove(c));
 
@@ -68,7 +92,6 @@ function applyFontPreset(presetKey) {
     container.classList.add(`override-${presetKey}`);
   }
 
-  // Update menu selection indicator
   document.querySelectorAll('.font-menu-item').forEach(item => {
     item.classList.toggle('is-selected', item.dataset.font === presetKey);
   });
@@ -190,7 +213,7 @@ function createNodeElement(node, searchQuery) {
   const self = document.createElement('div');
   self.className = 'tree-item-self';
   self.setAttribute('data-level', node.level);
-  self.setAttribute('data-script', node.script || 'latin'); // Sets target font per-heading
+  self.setAttribute('data-script', node.script || 'latin');
 
   if (activeHeadingId === node.id) {
     self.classList.add('is-active');
@@ -279,70 +302,4 @@ function renderTree(headings, query = '') {
   }
 
   if (!headings || headings.length === 0) {
-    treeContainer.innerHTML = '<div class="outline-status">No headings found in this note</div>';
-    return;
-  }
-
-  const normalizedQuery = normalizeForSearch(query);
-
-  function filterNodes(nodes) {
-    const filtered = [];
-    for (const n of nodes) {
-      const match = normalizeForSearch(n.text).includes(normalizedQuery);
-      const childMatches = filterNodes(n.children || []);
-      if (match || childMatches.length > 0) {
-        filtered.push({ ...n, children: childMatches });
-      }
-    }
-    return filtered;
-  }
-
-  const nodesToRender = query ? filterNodes(headings) : headings;
-  if (nodesToRender.length === 0) {
-    treeContainer.innerHTML = '<div class="outline-status">No matching headings found</div>';
-    return;
-  }
-
-  for (const node of nodesToRender) {
-    treeContainer.appendChild(createNodeElement(node, query));
-  }
-}
-
-async function syncOutline(force = false) {
-  if (!api || !api.postMessage) return;
-
-  try {
-    const data = await api.postMessage({
-      type: 'pollNote',
-      clientNoteId: renderedNoteId,
-      clientBodyLength: renderedBodyLength,
-      force: force,
-    });
-
-    if (data && data.changed) {
-      renderedNoteId = data.noteId;
-      renderedBodyLength = data.bodyLength !== undefined ? data.bodyLength : -1;
-      activeHeadingId = null;
-
-      setDirection(data.isRtl);
-      allHeadings = data.headings || [];
-
-      const searchInput = getSearchInput();
-      renderTree(allHeadings, searchInput ? searchInput.value.trim() : '');
-    }
-  } catch (err) {}
-}
-
-if (api && api.onMessage) {
-  api.onMessage((msg) => {
-    if (msg.type === 'noteSwitched') {
-      syncOutline(true);
-    }
-  });
-}
-
-syncOutline(true);
-
-setInterval(() => {
-  syncOutline(false);
-}, 350);
+    treeContainer.innerHTML = '<div
