@@ -2,27 +2,6 @@
 
 var api = typeof webviewApi !== 'undefined' ? webviewApi : (window.webviewApi || null);
 
-/**
- * Injects Google Fonts & Vazirmatn stylesheets into document.head via DOM API.
- */
-function ensureFontsLoaded() {
-  if (document.getElementById('outline-fonts-google')) return;
-
-  var gFont = document.createElement('link');
-  gFont.id = 'outline-fonts-google';
-  gFont.rel = 'stylesheet';
-  gFont.href = 'https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;600&family=Heebo:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&family=Lora:ital,wght@0,400;0,600&family=Noto+Sans+Arabic:wght@400;600;700&family=Noto+Sans+Devanagari:wght@400;600&family=Noto+Sans+JP:wght@400;500;700&family=Noto+Sans+SC:wght@400;500;700&family=Roboto:wght@400;500;700&family=Vazirmatn:wght@400;500;600;700&display=swap';
-  document.head.appendChild(gFont);
-
-  var vFont = document.createElement('link');
-  vFont.id = 'outline-fonts-vazirmatn';
-  vFont.rel = 'stylesheet';
-  vFont.href = 'https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css';
-  document.head.appendChild(vFont);
-}
-
-ensureFontsLoaded();
-
 var renderedNoteId = '';
 var renderedBodyLength = -1;
 var allHeadings = [];
@@ -221,12 +200,13 @@ function createNodeElement(node, searchQuery) {
     self.classList.add('is-active');
   }
 
+  // Chevron Toggle Icon - Locked to 12x12
   var icon = document.createElement('div');
   icon.className = 'collapse-icon';
   if (!node.children || node.children.length === 0) {
     icon.classList.add('is-hidden');
   }
-  icon.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>';
+  icon.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px;min-width:12px;max-width:12px;display:block;"><polyline points="6 9 12 15 18 9"></polyline></svg>';
 
   icon.addEventListener('click', function (e) {
     e.stopPropagation();
