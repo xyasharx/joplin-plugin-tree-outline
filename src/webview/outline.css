@@ -5,7 +5,19 @@
   --nav-accent: var(--joplin-selected-color, #705dcf);
   --nav-indent-guide: rgba(125, 125, 125, 0.18);
   --nav-indent-guide-hover: rgba(125, 125, 125, 0.45);
-  --font-interface: -apple-system, BlinkMacSystemFont, "Vazirmatn", "Sahel", "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans", "Microsoft YaHei", "Noto Sans", sans-serif;
+
+  /* Script Font Stacks with Native OS Fallbacks */
+  --font-latin: 'Inter', 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-persian: 'Vazirmatn', 'Sahel', 'Tahoma', 'Segoe UI', sans-serif;
+  --font-arabic: 'Noto Sans Arabic', 'Vazirmatn', 'Tahoma', 'Segoe UI', sans-serif;
+  --font-hebrew: 'Heebo', 'Segoe UI', 'Arial', sans-serif;
+  --font-cjk-sc: 'Noto Sans SC', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  --font-cjk-jp: 'Noto Sans JP', 'Hiragino Sans', 'Meiryo', 'Yu Gothic', sans-serif;
+  --font-devanagari: 'Noto Sans Devanagari', 'Mangal', 'Nirmala UI', sans-serif;
+  --font-roboto: 'Roboto', 'Inter', sans-serif;
+  --font-lora: 'Lora', 'Georgia', 'Cambria', serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+  --font-system: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
 html, body {
@@ -14,7 +26,7 @@ html, body {
   height: 100%;
   background-color: var(--joplin-background-color, transparent);
   color: var(--nav-item-color);
-  font-family: var(--font-interface);
+  font-family: var(--font-latin);
   user-select: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -39,6 +51,7 @@ body[dir="rtl"], .outline-container[dir="rtl"] {
   max-height: 100vh;
   overflow: hidden;
   box-sizing: border-box;
+  position: relative;
 }
 
 .outline-status {
@@ -50,7 +63,7 @@ body[dir="rtl"], .outline-container[dir="rtl"] {
   line-height: 1.5;
 }
 
-/* Pinned Header */
+/* Header & Action Buttons */
 .nav-header {
   position: sticky;
   top: 0;
@@ -77,7 +90,7 @@ body[dir="rtl"], .outline-container[dir="rtl"] {
   border-radius: 5px;
   cursor: pointer;
   color: inherit;
-  opacity: 0.7;
+  opacity: 0.75;
   transition: opacity 0.15s ease, background-color 0.15s ease;
 }
 
@@ -89,6 +102,61 @@ body[dir="rtl"], .outline-container[dir="rtl"] {
 .clickable-icon.is-active {
   opacity: 1;
   background-color: var(--nav-item-background-active);
+  color: var(--nav-accent);
+}
+
+.font-icon-label {
+  font-size: 13px;
+  font-weight: 700;
+  font-family: 'Inter', sans-serif;
+  letter-spacing: -0.5px;
+}
+
+/* Typography Preset Menu */
+.font-menu {
+  display: none;
+  position: absolute;
+  top: 38px;
+  inset-inline-end: 10px;
+  width: 200px;
+  background: var(--joplin-background-color, #fff);
+  border: 1px solid var(--joplin-divider-color, rgba(125, 125, 125, 0.25));
+  border-radius: 7px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.15);
+  padding: 4px;
+  z-index: 30;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.font-menu.is-visible {
+  display: block;
+}
+
+.font-menu-header {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  font-weight: 700;
+  opacity: 0.5;
+  padding: 4px 8px;
+  letter-spacing: 0.5px;
+}
+
+.font-menu-item {
+  padding: 6px 8px;
+  font-size: 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.12s ease;
+}
+
+.font-menu-item:hover {
+  background-color: var(--nav-item-background-hover);
+}
+
+.font-menu-item.is-selected {
+  background-color: var(--nav-item-background-active);
+  font-weight: 600;
   color: var(--nav-accent);
 }
 
@@ -134,14 +202,14 @@ body[dir="rtl"], .outline-container[dir="rtl"] {
   padding: 2px 4px;
 }
 
-/* Tree Scroll Container with Momentum Touch Support */
+/* Tree Scroll Container */
 .outline-tree {
   flex: 1 1 auto;
-  min-height: 0; /* Allows flex child to shrink and enable scrolling */
+  min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
-  -webkit-overflow-scrolling: touch; /* Momentum scrolling */
-  touch-action: pan-y; /* Permits vertical touch gestures */
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
   padding: 6px 8px calc(16px + env(safe-area-inset-bottom, 10px)) 8px;
   box-sizing: border-box;
 }
@@ -177,7 +245,7 @@ body[dir="rtl"], .outline-container[dir="rtl"] {
   background-color: var(--nav-item-background-hover);
 }
 
-/* Standard Typography Hierarchy */
+/* Typography Hierarchy */
 .tree-item-self[data-level="1"] {
   font-size: 13.5px;
   font-weight: 600;
@@ -248,7 +316,7 @@ body[dir="rtl"], .outline-container[dir="rtl"] {
   pointer-events: none;
 }
 
-/* Default: Single-line with clean ellipsis */
+/* BiDi Text Container */
 .tree-item-inner {
   display: inline-block;
   overflow: hidden;
@@ -260,22 +328,44 @@ body[dir="rtl"], .outline-container[dir="rtl"] {
 }
 
 /* ========================================================
-   TEXT WRAP MODE (Multilingual & Long Heading Support)
+   AUTOMATIC SCRIPT TYPOGRAPHY ENGINE
    ======================================================== */
+.tree-item-self[data-script="latin"] .tree-item-inner { font-family: var(--font-latin); }
+.tree-item-self[data-script="persian"] .tree-item-inner { font-family: var(--font-persian); }
+.tree-item-self[data-script="arabic"] .tree-item-inner { font-family: var(--font-arabic); }
+.tree-item-self[data-script="hebrew"] .tree-item-inner { font-family: var(--font-hebrew); }
+.tree-item-self[data-script="sc"] .tree-item-inner { font-family: var(--font-cjk-sc); }
+.tree-item-self[data-script="jp"] .tree-item-inner { font-family: var(--font-cjk-jp); }
+.tree-item-self[data-script="devanagari"] .tree-item-inner { font-family: var(--font-devanagari); }
+
+/* Manual Preset Overrides */
+.outline-container.override-inter .tree-item-inner { font-family: var(--font-latin) !important; }
+.outline-container.override-roboto .tree-item-inner { font-family: var(--font-roboto) !important; }
+.outline-container.override-vazirmatn .tree-item-inner { font-family: var(--font-persian) !important; }
+.outline-container.override-arabic .tree-item-inner { font-family: var(--font-arabic) !important; }
+.outline-container.override-hebrew .tree-item-inner { font-family: var(--font-hebrew) !important; }
+.outline-container.override-cjk-sc .tree-item-inner { font-family: var(--font-cjk-sc) !important; }
+.outline-container.override-cjk-jp .tree-item-inner { font-family: var(--font-cjk-jp) !important; }
+.outline-container.override-devanagari .tree-item-inner { font-family: var(--font-devanagari) !important; }
+.outline-container.override-lora .tree-item-inner { font-family: var(--font-lora) !important; }
+.outline-container.override-mono .tree-item-inner { font-family: var(--font-mono) !important; }
+.outline-container.override-system .tree-item-inner { font-family: var(--font-system) !important; }
+
+/* Text Wrap Mode */
 .outline-container.is-wrapped .tree-item-self {
-  align-items: flex-start; /* Pin chevron to first line of text */
+  align-items: flex-start;
   padding-top: 4px;
   padding-bottom: 4px;
 }
 
 .outline-container.is-wrapped .tree-item-inner {
-  white-space: normal;      /* Allow full multiline wrapping */
-  word-break: break-word;   /* Break long words naturally */
+  white-space: normal;
+  word-break: break-word;
   overflow-wrap: break-word;
 }
 
 .outline-container.is-wrapped .collapse-icon {
-  margin-top: 1px; /* Align chevron with the first line baseline */
+  margin-top: 1px;
 }
 
 /* Indent Guidelines */
