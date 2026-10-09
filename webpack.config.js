@@ -17,6 +17,9 @@ module.exports = () => {
       },
       extensions: ['.tsx', '.ts', '.js'],
     },
+    optimization: {
+      minimize: false, // Prevents minimizer-webpack-plugin from crashing on copied webview assets
+    },
     module: {
       rules: [
         {
@@ -33,7 +36,7 @@ module.exports = () => {
     output: {
       filename: 'index.js',
       path: distDir,
-      globalObject: 'this', // Prevents Webpack from emitting bare 'global' references
+      globalObject: 'this',
     },
     plugins: [
       new CopyPlugin({
