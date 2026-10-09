@@ -24,9 +24,9 @@ export function detectHeadingScript(text: string): string {
   if (/[\u4E00-\u9FFF]/.test(text)) return 'sc';
   if (/[\u0900-\u097F]/.test(text)) return 'devanagari';
   if (/[\u0590-\u05FF]/.test(text)) return 'hebrew';
-  if (/[\u0600-\u06FF\uFB50-\uFDFF\uFE70-\uFEFF]/.test(text)) {
-    if (/[گچپژکگی\u200C]/.test(text)) return 'persian';
-    return 'arabic';
+  // Matches all Arabic/Persian/Urdu ranges including Presentation Forms & Persian digits
+  if (/[\u0600-\u06FF\u0750-\u077F\uFB50-\uFDFF\uFE70-\uFEFF\u06F0-\u06F9]/.test(text)) {
+    return 'persian';
   }
   return 'latin';
 }
