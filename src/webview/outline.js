@@ -56,6 +56,24 @@ function countTotalHeadings(nodes) {
   return count;
 }
 
+function applyFontPreset(presetKey) {
+  const container = document.getElementById('outline-container');
+  if (!container) return;
+
+  // Clear existing override classes
+  const classesToRemove = Array.from(container.classList).filter(c => c.startsWith('override-'));
+  classesToRemove.forEach(c => container.classList.remove(c));
+
+  if (presetKey && presetKey !== 'auto') {
+    container.classList.add(`override-${presetKey}`);
+  }
+
+  // Update menu selection indicator
+  document.querySelectorAll('.font-menu-item').forEach(item => {
+    item.classList.toggle('is-selected', item.dataset.font === presetKey);
+  });
+}
+
 function initEventHandlers() {
   const searchToggleBtn = document.getElementById('search-toggle-btn');
   const searchContainer = getSearchContainer();
@@ -63,9 +81,11 @@ function initEventHandlers() {
   const searchClearBtn = document.getElementById('search-clear-btn');
   const collapseAllBtn = document.getElementById('collapse-all-btn');
   const wrapToggleBtn = document.getElementById('wrap-toggle-btn');
+  const fontToggleBtn = document.getElementById('font-toggle-btn');
+  const fontMenu = document.getElementById('font-menu');
   const container = document.getElementById('outline-container');
 
-  // Load Saved Wrap Preference (Defaults to true on phones/narrow screens)
+  // Load Saved Wrap Preference
   if (container) {
     const savedWrap = localStorage.getItem('treeOutline_isWrapped');
     let isWrapped = savedWrap !== null ? savedWrap === 'true' : window.innerWidth <= 650;
@@ -83,6 +103,32 @@ function initEventHandlers() {
         localStorage.setItem('treeOutline_isWrapped', currentlyWrapped ? 'true' : 'false');
       });
     }
+  }
+
+  // Typography Preset Menu
+  const savedFontPreset = localStorage.getItem('treeOutline_fontPreset') || 'auto';
+  applyFontPreset(savedFontPreset);
+
+  if (fontToggleBtn && !fontToggleBtn.dataset.bound) {
+    fontToggleBtn.dataset.bound = 'true';
+    fontToggleBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (fontMenu) fontMenu.classList.toggle('is-visible');
+    });
+
+    document.addEventListener('click', () => {
+      if (fontMenu) fontMenu.classList.remove('is-visible');
+    });
+
+    document.querySelectorAll('.font-menu-item').forEach(item => {
+      item.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const font = item.dataset.font;
+        applyFontPreset(font);
+        localStorage.setItem('treeOutline_fontPreset', font);
+        if (fontMenu) fontMenu.classList.remove('is-visible');
+      });
+    });
   }
 
   // Toggle Search Bar
@@ -144,6 +190,7 @@ function createNodeElement(node, searchQuery) {
   const self = document.createElement('div');
   self.className = 'tree-item-self';
   self.setAttribute('data-level', node.level);
+  self.setAttribute('data-script', node.script || 'latin'); // Sets target font per-heading
 
   if (activeHeadingId === node.id) {
     self.classList.add('is-active');
