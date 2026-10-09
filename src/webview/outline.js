@@ -200,7 +200,6 @@ function createNodeElement(node, searchQuery) {
     self.classList.add('is-active');
   }
 
-  // Chevron Toggle Icon - Locked to 12x12
   var icon = document.createElement('div');
   icon.className = 'collapse-icon';
   if (!node.children || node.children.length === 0) {
