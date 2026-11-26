@@ -638,6 +638,10 @@ mark.highlight-match,
   pointer-events: none;
 }
 
+.outline-toast[data-kind="error"] {
+  border-color: var(--joplin-color-error2, #c93b3b);
+}
+
 .outline-toast[hidden] {
   display: none;
 }

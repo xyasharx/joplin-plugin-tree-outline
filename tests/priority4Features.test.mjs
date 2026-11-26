@@ -602,6 +602,18 @@ describe('P4 #1: Active Heading Scroll-Spy (CM6 ViewPlugin + Markdown Viewer Run
     assert.equal(postedToHost[postedToHost.length - 1].line, 12);
     assert.equal(postedToHost[postedToHost.length - 1].source, 'scroll');
 
+    // Note switch in reused CM6 EditorView (docChanged) at same cursor line (line 6 -> line 6)
+    mockView.state.selection.main.head = 125; // line 12 (same as lastSentLine === 12!)
+    const countBeforeSwitch = postedToHost.length;
+    viewPluginInstance.update({ docChanged: true, selectionSet: false, viewportChanged: false, view: mockView });
+    await sleep(180);
+    assert.equal(
+      postedToHost.length,
+      countBeforeSwitch + 1,
+      'docChanged must reset lastSentLine so note switch at identical line number still reports active line',
+    );
+    assert.equal(postedToHost[postedToHost.length - 1].line, 12);
+
     viewPluginInstance.destroy();
   });
 
@@ -703,11 +715,24 @@ describe('P4 #1: Active Heading Scroll-Spy (CM6 ViewPlugin + Markdown Viewer Run
     });
     assert.equal(host.postedMessages.length, 0);
 
-    // Clicking a heading suppresses immediate scroll-spy bounce back
+    // Clicking a heading suppresses immediate scroll-spy bounce back AND updates tracked key
+    // so scrolling back to the previously tracked heading after suppression expires is NOT dropped!
     await host.changeSettings({ followActiveHeading: true, maxHeadingDepth: 6 });
+    host.postedMessages.length = 0;
+    await host.sendFromContentScript('treeOutlineCodeMirrorScroller', {
+      type: 'editorActiveLine',
+      line: 0,
+      source: 'selection',
+    });
+    assert.equal(
+      host.postedMessages[host.postedMessages.length - 1]?.headingKey,
+      'introduction',
+    );
+
     host.postedMessages.length = 0;
     await host.sendFromWebview({
       type: 'jumpToHeading',
+      key: 'deployment',
       line: 8,
       slug: 'deployment',
       text: 'Deployment',
@@ -722,6 +747,18 @@ describe('P4 #1: Active Heading Scroll-Spy (CM6 ViewPlugin + Markdown Viewer Run
       host.postedMessages.filter((m) => m.type === 'activeHeadingUpdate').length,
       0,
       'Immediate scroll events after jump click must be suppressed to avoid flicker',
+    );
+
+    await sleep(640);
+    await host.sendFromContentScript('treeOutlineCodeMirrorScroller', {
+      type: 'editorActiveLine',
+      line: 0,
+      source: 'scroll',
+    });
+    assert.equal(
+      host.postedMessages.find((m) => m.type === 'activeHeadingUpdate')?.headingKey,
+      'introduction',
+      'Scrolling back to previous heading after manual jump suppression must re-highlight it',
     );
   });
 });
@@ -814,8 +851,31 @@ describe('P4 #2, #3, #4: Native Settings Panel, Heading Link/TOC Actions & Disti
     assert.ok(insertedToc.includes('    - 1.1.1 [Scroll Spy](#scroll-spy)'));
     assert.ok(!insertedToc.includes('Deep Detail'), 'H4 must be omitted when maxHeadingDepth=3');
 
-    // 4. Native Joplin Command Palette command is registered
+    // 4. Native Joplin Command Palette command works even BEFORE webview ready (e.g. hidden panel!)
     assert.ok(host.registeredCommands.has('treeOutline.insertToc'));
+    const hiddenPanelHost = createFullPriority4Host({
+      persistedSettings: { panelVisible: false },
+    });
+    await hiddenPanelHost.start();
+    // Note: never sent webview { type: 'ready' }!
+    await hiddenPanelHost.registeredCommands.get('treeOutline.insertToc').execute();
+    const hiddenInsert = hiddenPanelHost.executedCommands.find((c) => c.name === 'insertText');
+    assert.ok(
+      hiddenInsert && hiddenInsert.args[0].includes('- [Introduction](#introduction)'),
+      'Command Palette Insert TOC must sync active note and work even when panel is hidden',
+    );
+
+    // 4b. Escapes spaces & parentheses in explicit HTML heading slugs while preserving Unicode slugs
+    await host.sendFromWebview({
+      type: 'copyHeadingLink',
+      format: 'markdown',
+      slug: 'sec (1) مقدمه',
+      text: 'Section (1)',
+    });
+    assert.equal(
+      host.clipboardWrites[host.clipboardWrites.length - 1],
+      '[Section (1)](:/note-p4#sec%20%281%29%20مقدمه)',
+    );
 
     // 5. Viewer-only fallback copies TOC to clipboard when editor commands throw
     const viewerOnlyHost = createFullPriority4Host({
@@ -1008,12 +1068,14 @@ describe('P4 #2, #3, #4: Native Settings Panel, Heading Link/TOC Actions & Disti
 });
 
 describe('P4 #5: Official Joplin Plugin Store Manifest Metadata & Visual Assets', () => {
-  it('declares valid categories, mobile min version, PNG icons, screenshots, and promo_tile on disk', () => {
+  it('declares valid categories, mobile min version, absolute screenshots/promo_tile URLs, and valid PNG assets on disk', () => {
     const manifest = JSON.parse(fs.readFileSync(path.join(repoRoot, 'src', 'manifest.json'), 'utf8'));
     const distManifest = JSON.parse(fs.readFileSync(path.join(repoRoot, 'dist', 'manifest.json'), 'utf8'));
+    const rawPrefix = 'https://raw.githubusercontent.com/xyasharx/joplin-plugin-tree-outline/main/';
 
     assert.deepEqual(distManifest, manifest);
-    assert.equal(manifest.repository_url, 'https://github.com/xyasharx/joplin-plugin-tree-outline');
+    assert.equal(manifest.homepage_url, 'https://github.com/xyasharx/joplin-plugin-tree-outline');
+    assert.equal(manifest.repository_url, 'https://github.com/your-username/joplin-plugin-tree-outline');
     assert.equal(manifest.app_min_version, '2.8.0');
     assert.equal(manifest.app_min_version_mobile, '3.0.0');
 
@@ -1023,26 +1085,30 @@ describe('P4 #5: Official Joplin Plugin Store Manifest Metadata & Visual Assets'
       assert.ok(VALID_JOPLIN_CATEGORIES.has(cat), `Invalid Joplin category: ${cat}`);
     }
 
-    // PNG icons exist & carry valid PNG magic header
+    // PNG icons remain valid on disk for future migration, while manifest omits relative icons
+    // so PluginRemoteInfoLoader does not fetch broken 404 URLs from your-username
     const pngMagic = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    assert.equal(manifest.icons, undefined);
     for (const size of ['16', '32', '48', '128']) {
-      const rel = manifest.icons?.[size];
-      assert.ok(rel && rel.endsWith('.png'), `Missing PNG icon for size ${size}`);
-      const fullPath = path.join(repoRoot, rel);
-      assert.ok(fs.existsSync(fullPath), `Icon file missing: ${rel}`);
+      const fullPath = path.join(repoRoot, 'images', `icon${size}.png`);
+      assert.ok(fs.existsSync(fullPath), `Icon asset missing: images/icon${size}.png`);
       assert.ok(fs.readFileSync(fullPath).subarray(0, 8).equals(pngMagic));
     }
 
-    // Screenshots exist & carry descriptive labels
+    // Screenshots use absolute raw GitHub URLs backed by real PNG files on disk
     assert.ok(Array.isArray(manifest.screenshots) && manifest.screenshots.length >= 2);
     for (const shot of manifest.screenshots) {
       assert.ok(shot.label && shot.label.length >= 10);
-      assert.ok(fs.existsSync(path.join(repoRoot, shot.src)), `Screenshot missing: ${shot.src}`);
+      assert.ok(shot.src.startsWith(rawPrefix), `Expected absolute raw GitHub URL, got ${shot.src}`);
+      const localPath = path.join(repoRoot, shot.src.slice(rawPrefix.length));
+      assert.ok(fs.existsSync(localPath), `Screenshot missing on disk: ${localPath}`);
+      assert.ok(fs.readFileSync(localPath).subarray(0, 8).equals(pngMagic));
     }
 
-    // Promo tile exists & is valid PNG (440x280)
-    assert.ok(manifest.promo_tile?.src && manifest.promo_tile?.label);
-    const promoBuf = fs.readFileSync(path.join(repoRoot, manifest.promo_tile.src));
+    // Promo tile uses absolute raw GitHub URL & is valid 440x280 PNG on disk
+    assert.ok(manifest.promo_tile?.src?.startsWith(rawPrefix) && manifest.promo_tile?.label);
+    const promoPath = path.join(repoRoot, manifest.promo_tile.src.slice(rawPrefix.length));
+    const promoBuf = fs.readFileSync(promoPath);
     assert.ok(promoBuf.subarray(0, 8).equals(pngMagic));
     const width = promoBuf.readUInt32BE(16);
     const height = promoBuf.readUInt32BE(20);

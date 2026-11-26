@@ -132,12 +132,25 @@ export function escapeMarkdownLinkLabel(text: string): string {
 }
 
 /**
+ * Escapes characters that break Markdown inline link destinations `(`, `)`, and
+ * whitespace while preserving Unicode slugs (Persian, Arabic, CJK, accented Latin).
+ */
+function sanitizeMarkdownLinkSlug(slug: string): string {
+  return String(slug || '')
+    .replace(/^#/, '')
+    .trim()
+    .replace(/\s+/g, '%20')
+    .replace(/\(/g, '%28')
+    .replace(/\)/g, '%29');
+}
+
+/**
  * Formats a Joplin internal Markdown heading link `[Title](:/noteId#slug)`
  * (or `[Title](#slug)` if `noteId` is absent).
  */
 export function formatJoplinHeadingLink(noteId: string, text: string, slug: string): string {
   const safeLabel = escapeMarkdownLinkLabel(text) || slug || 'Heading';
-  const cleanSlug = String(slug || '').replace(/^#/, '').trim();
+  const cleanSlug = sanitizeMarkdownLinkSlug(slug);
   const cleanNoteId = String(noteId || '').trim();
   if (cleanNoteId && cleanSlug) {
     return `[${safeLabel}](:/${cleanNoteId}#${cleanSlug})`;
@@ -197,7 +210,7 @@ export function buildMarkdownToc(
     const indent = '  '.repeat(Math.max(0, node.level - minLevel));
     const safeTitle = escapeMarkdownLinkLabel(node.text);
     const numPrefix = numberMap?.has(node.key) ? `${numberMap.get(node.key)} ` : '';
-    const slug = String(node.slug || '').replace(/^#/, '');
+    const slug = sanitizeMarkdownLinkSlug(node.slug || '');
     return `${indent}- ${numPrefix}[${safeTitle}](#${slug})`;
   });
 

@@ -6,7 +6,7 @@
 
 TreeOutline is a hierarchical outline and table of contents panel for Joplin desktop and mobile. It parses Markdown and HTML note headings into a collapsible, searchable, keyboard-accessible tree with active heading scroll-spy, quick link/TOC actions, native Joplin settings, and bidirectional RTL/LTR support.
 
-![TreeOutline Desktop Panel](images/screenshot-desktop.png)
+![TreeOutline Desktop Panel](https://raw.githubusercontent.com/xyasharx/joplin-plugin-tree-outline/main/images/screenshot-desktop.png)
 
 ---
 
@@ -15,7 +15,7 @@ TreeOutline is a hierarchical outline and table of contents panel for Joplin des
 - **Active Heading Scroll-Spy:** Automatically highlights and scrolls the currently active section into view inside TreeOutline as you read or write across CodeMirror 6 and the rendered Markdown Viewer (with collapsed-ancestor accent indicators).
 - **Native Joplin Settings Panel:** Configure everything live under **Tools > Options > TreeOutline** (macOS: **Joplin > Preferences > TreeOutline**):
   - Maximum heading depth (`H1`–`H6`)
-  - Default auto-collapse level (e.g., collapse `H3+` automatically on long notes)
+  - Default auto-collapse level (e.g., collapse `H2`–`H5` and deeper automatically on long notes)
   - Follow active heading (scroll-spy toggle)
   - Hierarchical heading numbering (`1.`, `1.1`, `1.2`)
   - Subtle heading level badges (`H1`–`H6`)
@@ -28,7 +28,7 @@ TreeOutline is a hierarchical outline and table of contents panel for Joplin des
 - **Editor, Viewer & Mobile Sync:** Seamless jumping in CodeMirror 6, legacy CodeMirror 5, Rich Text Editor (TinyMCE), Markdown Viewer, and Joplin Mobile (Android & iOS) with clear multi-note selection feedback.
 - **Zero-Polling & Lightweight:** Strictly event-driven with zero `setInterval` timers, zero external runtime frameworks, and minified mobile-safe bundles.
 
-![TreeOutline Dark Theme and Native Settings](images/screenshot-dark-settings.png)
+![TreeOutline Dark Theme and Native Settings](https://raw.githubusercontent.com/xyasharx/joplin-plugin-tree-outline/main/images/screenshot-dark-settings.png)
 
 ---
 

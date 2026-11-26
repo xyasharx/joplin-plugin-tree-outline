@@ -88,6 +88,9 @@ joplin.plugins.register({
     await scrollSpy.registerListeners();
 
     const executeInsertToc = async (): Promise<void> => {
+      // Ensure snapshot is fresh even if invoked from Command Palette while
+      // the panel is hidden or before a debounced note edit has flushed.
+      await syncController.syncNow({ force: false });
       const snapshot = syncController.getCurrentSnapshot();
       const result = await insertMarkdownTocIntoNote(joplin, snapshot.headings, {
         maxDepth: currentPreferences.maxHeadingDepth,
@@ -131,7 +134,14 @@ joplin.plugins.register({
       }
 
       if (message.type === 'jumpToHeading') {
-        scrollSpy?.suppressTemporarily(600);
+        const snapshot = syncController.getCurrentSnapshot();
+        const jumpedKey =
+          typeof message.key === 'string' && message.key
+            ? message.key
+            : typeof message.slug === 'string' && message.slug
+              ? message.slug
+              : null;
+        scrollSpy?.notifyManualJump(snapshot.noteId, jumpedKey, 600);
         await jumpToHeading({
           joplinApi: joplin,
           isMobile,
@@ -164,6 +174,12 @@ joplin.plugins.register({
     });
 
     await subscribePreferenceChanges(joplin.settings, (preferences) => {
+      if (
+        preferences.followActiveHeading !== currentPreferences.followActiveHeading ||
+        preferences.maxHeadingDepth !== currentPreferences.maxHeadingDepth
+      ) {
+        scrollSpy?.resetActiveTracking();
+      }
       pushPreferences(preferences);
     });
 

@@ -8,6 +8,17 @@ const repoRoot = path.resolve(__dirname, '..');
 
 const SEMVER_RE = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
 const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+const RAW_GITHUB_PREFIX = 'https://raw.githubusercontent.com/xyasharx/joplin-plugin-tree-outline/main/';
+
+/**
+ * Locked repository_url registered in joplin/plugins/manifests.json since v1.0.0.
+ * Joplin's checkIfPluginCanBeAdded.ts rejects npm updates if this value changes for the same plugin ID.
+ */
+export const JOPLIN_REGISTERED_REPOSITORY_URL =
+  'https://github.com/your-username/joplin-plugin-tree-outline';
+
+export const REAL_HOMEPAGE_URL =
+  'https://github.com/xyasharx/joplin-plugin-tree-outline';
 
 /** Official Joplin Plugin Store category allowlist (joplinapp.org/help/api/references/plugin_manifest/). */
 export const VALID_JOPLIN_CATEGORIES = new Set([
@@ -34,6 +45,17 @@ function isValidPngFile(filePath) {
   } finally {
     fs.closeSync(fd);
   }
+}
+
+function resolveLocalAssetPath(rootDir, src) {
+  if (typeof src !== 'string') return null;
+  if (src.startsWith(RAW_GITHUB_PREFIX)) {
+    return path.join(rootDir, src.slice(RAW_GITHUB_PREFIX.length));
+  }
+  if (/^https?:\/\//i.test(src)) {
+    return null;
+  }
+  return path.join(rootDir, src);
 }
 
 function parseTagArg(argv) {
@@ -88,12 +110,18 @@ export function checkVersionParity({ rootDir = repoRoot, tag = null } = {}) {
     errors.push('src/manifest.json must declare a non-empty "id".');
   }
 
-  if (
-    typeof manifest.repository_url === 'string' &&
-    manifest.repository_url.includes('your-username')
-  ) {
+  if (manifest.homepage_url !== REAL_HOMEPAGE_URL) {
     errors.push(
-      `src/manifest.json repository_url still contains placeholder: ${manifest.repository_url}`,
+      `src/manifest.json homepage_url must point to "${REAL_HOMEPAGE_URL}" (got "${manifest.homepage_url}").`,
+    );
+  }
+
+  // Guard Joplin's immutable repository_url lock for com.xyasharx.treeoutline so automated
+  // joplin/plugins npm updates are never silently rejected by checkIfPluginCanBeAdded.ts.
+  const usesLockedRepoUrl = manifest.repository_url === JOPLIN_REGISTERED_REPOSITORY_URL;
+  if (manifest.id === 'com.xyasharx.treeoutline' && !usesLockedRepoUrl) {
+    errors.push(
+      `src/manifest.json repository_url for "${manifest.id}" must match the locked joplin/plugins registry entry "${JOPLIN_REGISTERED_REPOSITORY_URL}" (changing it causes Joplin's updater to reject releases).`,
     );
   }
 
@@ -105,7 +133,12 @@ export function checkVersionParity({ rootDir = repoRoot, tag = null } = {}) {
     }
   }
 
-  if (manifest.icons && typeof manifest.icons === 'object') {
+  if (manifest.icons && typeof manifest.icons === 'object' && Object.keys(manifest.icons).length > 0) {
+    if (usesLockedRepoUrl) {
+      errors.push(
+        'src/manifest.json must not declare relative "icons" while repository_url is locked to your-username (would 404 on joplinapp.org/plugins).',
+      );
+    }
     for (const [size, relPath] of Object.entries(manifest.icons)) {
       if (typeof relPath !== 'string' || !relPath.toLowerCase().endsWith('.png')) {
         errors.push(`src/manifest.json icons["${size}"] must reference a PNG file (got "${relPath}").`);
@@ -125,17 +158,29 @@ export function checkVersionParity({ rootDir = repoRoot, tag = null } = {}) {
       if (!shot.label || typeof shot.label !== 'string') {
         errors.push(`src/manifest.json screenshots[${i}] is missing accessible "label".`);
       }
-      if (!/^https?:\/\//i.test(shot.src) && !fs.existsSync(path.join(rootDir, shot.src))) {
-        errors.push(`src/manifest.json screenshots[${i}] file not found: ${shot.src}`);
+      if (usesLockedRepoUrl && !shot.src.startsWith('https://')) {
+        errors.push(
+          `src/manifest.json screenshots[${i}] must use an absolute https:// URL while repository_url is locked to your-username.`,
+        );
+      }
+      const localPath = resolveLocalAssetPath(rootDir, shot.src);
+      if (localPath && !isValidPngFile(localPath)) {
+        errors.push(`src/manifest.json screenshots[${i}] PNG asset missing or invalid: ${shot.src}`);
       }
     }
   }
 
   if (manifest.promo_tile && typeof manifest.promo_tile === 'object') {
     const src = manifest.promo_tile.src;
-    if (typeof src === 'string' && !/^https?:\/\//i.test(src)) {
-      if (!fs.existsSync(path.join(rootDir, src))) {
-        errors.push(`src/manifest.json promo_tile asset not found: ${src}`);
+    if (typeof src === 'string') {
+      if (usesLockedRepoUrl && !src.startsWith('https://')) {
+        errors.push(
+          'src/manifest.json promo_tile.src must use an absolute https:// URL while repository_url is locked to your-username.',
+        );
+      }
+      const localPath = resolveLocalAssetPath(rootDir, src);
+      if (localPath && !isValidPngFile(localPath)) {
+        errors.push(`src/manifest.json promo_tile PNG asset missing or invalid: ${src}`);
       }
     }
   }

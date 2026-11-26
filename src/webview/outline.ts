@@ -393,6 +393,12 @@ function applyPreferencesUpdate(msg: PreferencesUpdateMessage): void {
     next.showLevelBadges !== prev.showLevelBadges;
 
   if (needsRerender && currentSelectionKind !== 'none') {
+    if (next.maxHeadingDepth !== prev.maxHeadingDepth && activeHeadingKey !== null) {
+      const visibleKeys = collectAllKeys(getDepthFilteredHeadings());
+      if (!visibleKeys.has(activeHeadingKey)) {
+        activeHeadingKey = null;
+      }
+    }
     const searchInput = getSearchInput();
     const activeQuery = searchInput ? searchInput.value.trim() : '';
     renderTree(allHeadings, activeQuery, { preserveScroll: true });
@@ -729,7 +735,7 @@ function applyActiveHeadingHighlight(
     const isVisible = visibleItems.includes(matchedItem);
     const scrollTarget = isVisible
       ? matchedItem
-      : allItems.find((el) => el.classList.contains('has-active-child')) ?? null;
+      : visibleItems.find((el) => el.classList.contains('has-active-child')) ?? null;
 
     if (scrollTarget && typeof scrollTarget.scrollIntoView === 'function') {
       scrollTarget.scrollIntoView({
@@ -752,6 +758,7 @@ function activateHeadingItem(treeItem: HTMLElement): void {
   if (api?.postMessage) {
     void api.postMessage({
       type: 'jumpToHeading',
+      key: node.key,
       line: node.line,
       slug: node.slug,
       text: node.text,
@@ -1270,6 +1277,14 @@ function handleContextMenuKeyDown(event: KeyboardEvent): void {
     case 'ArrowUp':
       event.preventDefault();
       items[(currentIdx - 1 + items.length) % items.length]?.focus();
+      break;
+    case 'Home':
+      event.preventDefault();
+      items[0]?.focus();
+      break;
+    case 'End':
+      event.preventDefault();
+      items[items.length - 1]?.focus();
       break;
     case 'Tab':
       closeContextMenu();
