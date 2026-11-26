@@ -703,6 +703,12 @@ function createMiniDom() {
     set id(v) {
       this.attributes.set('id', String(v));
     }
+    get children() {
+      return this.childNodes.filter((n) => n.nodeType === 1);
+    }
+    get parentElement() {
+      return this.parentNode && this.parentNode.nodeType === 1 ? this.parentNode : null;
+    }
     get className() {
       return this.classList.toString();
     }
@@ -989,7 +995,7 @@ describe('P0 #2 & #4: Compiled webview dist/webview/outline.js DOM behavior', ()
     wv.elements.searchInput.value = 'میخواهم';
     wv.elements.searchInput.dispatchEvent({ type: 'input' });
 
-    assert.equal(wv.elements.searchClearBtn.style.display, 'block');
+    assert.equal(wv.elements.searchClearBtn.style.display, 'inline-flex');
     const marks = wv.elements.outlineTree.querySelectorAll('mark');
     assert.equal(marks.length, 1);
     assert.equal(marks[0].className, 'highlight-match');
