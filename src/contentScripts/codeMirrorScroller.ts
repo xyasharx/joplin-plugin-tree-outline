@@ -146,12 +146,19 @@ function createCm6ScrollSpyExtensions(
       ViewPlugin.fromClass(
         class {
           constructor(view: any) {
+            lastSentLine = -1;
             scheduleEmit(resolveCursorZeroBasedLine(view), 'selection');
           }
 
           update(update: any): void {
             try {
-              if (update.selectionSet) {
+              if (update.docChanged) {
+                // Joplin Desktop reuses the same CM6 EditorView across note switches;
+                // reset lastSentLine so a new note starting at the same line (e.g. 0)
+                // still reports its initial active section cleanly.
+                lastSentLine = -1;
+                scheduleEmit(resolveCursorZeroBasedLine(update.view), 'selection');
+              } else if (update.selectionSet) {
                 scheduleEmit(resolveCursorZeroBasedLine(update.view), 'selection');
               } else if (update.viewportChanged) {
                 scheduleEmit(resolveViewportTopZeroBasedLine(update.view), 'scroll');

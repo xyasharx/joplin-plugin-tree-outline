@@ -106,6 +106,7 @@ export interface WebviewRequestSyncMessage {
 
 export interface WebviewJumpToHeadingMessage {
   type: 'jumpToHeading';
+  key?: string;
   line: number;
   slug: string;
   text: string;

@@ -20,7 +20,9 @@ export interface ScrollSpyControllerOptions {
 export interface ScrollSpyController {
   registerListeners: () => Promise<void>;
   suppressTemporarily: (durationMs?: number) => void;
+  notifyManualJump: (noteId: string, headingKey: string | null, durationMs?: number) => void;
   resetForNote: (noteId: string) => void;
+  resetActiveTracking: () => void;
 }
 
 /**
@@ -61,8 +63,26 @@ export function createScrollSpyController({
     suppressedUntil = Date.now() + Math.max(0, durationMs);
   };
 
+  const notifyManualJump = (
+    noteId: string,
+    headingKey: string | null,
+    durationMs = 600,
+  ): void => {
+    if (noteId) {
+      lastNoteId = noteId;
+    }
+    if (headingKey) {
+      lastPushedHeadingKey = headingKey;
+    }
+    suppressTemporarily(durationMs);
+  };
+
   const resetForNote = (noteId: string): void => {
     lastNoteId = noteId;
+    lastPushedHeadingKey = null;
+  };
+
+  const resetActiveTracking = (): void => {
     lastPushedHeadingKey = null;
   };
 
@@ -144,6 +164,8 @@ export function createScrollSpyController({
   return {
     registerListeners,
     suppressTemporarily,
+    notifyManualJump,
     resetForNote,
+    resetActiveTracking,
   };
 }

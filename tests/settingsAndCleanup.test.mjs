@@ -398,13 +398,15 @@ function createPreferencesWebviewHarness({ innerWidth = 900, throwStorage = true
 }
 
 describe('P1 #5: Dead code removal, single-source HTML template, dependencies & manifest', () => {
-  it('sets real repository_url in both src/manifest.json and dist/manifest.json', () => {
+  it('sets real homepage_url and preserves Joplin registry-locked repository_url in src & dist manifest', () => {
     const srcManifest = JSON.parse(fs.readFileSync(path.join(repoRoot, 'src', 'manifest.json'), 'utf8'));
     const distManifest = JSON.parse(fs.readFileSync(path.join(repoRoot, 'dist', 'manifest.json'), 'utf8'));
 
-    assert.equal(srcManifest.repository_url, 'https://github.com/xyasharx/joplin-plugin-tree-outline');
-    assert.equal(distManifest.repository_url, 'https://github.com/xyasharx/joplin-plugin-tree-outline');
-    assert.ok(!JSON.stringify(distManifest).includes('your-username'));
+    assert.equal(srcManifest.homepage_url, 'https://github.com/xyasharx/joplin-plugin-tree-outline');
+    assert.equal(distManifest.homepage_url, 'https://github.com/xyasharx/joplin-plugin-tree-outline');
+    // Must match original joplin/plugins/manifests.json lock so automated updates are not rejected
+    assert.equal(srcManifest.repository_url, 'https://github.com/your-username/joplin-plugin-tree-outline');
+    assert.equal(distManifest.repository_url, 'https://github.com/your-username/joplin-plugin-tree-outline');
   });
 
   it('removes unused chalk and glob from package.json', () => {
