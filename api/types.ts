@@ -181,9 +181,12 @@ export interface JoplinApi {
   settings: {
     registerSection?: (name: string, section: SettingSection) => Promise<void>;
     registerSettings(settings: Record<string, SettingItem>): Promise<void>;
+    values?: (keys: string[] | string) => Promise<Record<string, any>>;
     value(key: string): Promise<any>;
     setValue(key: string, value: any): Promise<void>;
+    globalValues?: (keys: string[]) => Promise<any[]>;
     globalValue(key: string): Promise<any>;
+    onChange?: (handler: (event: { keys: string[] }) => void | Promise<void>) => Promise<void>;
   };
   workspace: {
     selectedNote(): Promise<any>;

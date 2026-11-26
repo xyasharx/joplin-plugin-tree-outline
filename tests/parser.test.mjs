@@ -263,14 +263,31 @@ describe('Markdown & HTML heading parser (P0 #3)', () => {
     );
   });
 
-  it('detects RTL and linguistic scripts accurately', () => {
+  it('detects RTL and distinguishes Persian vs standard Arabic scripts accurately', () => {
     assert.equal(isTextRtl('سلام دنیا'), true);
+    assert.equal(isTextRtl('مقدمة في البرمجة العربية'), true);
     assert.equal(isTextRtl('Hello World'), false);
+
+    // Persian-distinctive vs Arabic-distinctive headings
     assert.equal(detectHeadingScript('معماری سیستم'), 'persian');
+    assert.equal(detectHeadingScript('پروژه جدید و گزارش‌ها'), 'persian');
+    assert.equal(detectHeadingScript('فصل ۱۲: یادداشت'), 'persian');
+    assert.equal(detectHeadingScript('مقدمة في البرمجة العربية'), 'arabic');
+    assert.equal(detectHeadingScript('مكتبة الأدوات ١٢'), 'arabic');
+    assert.equal(detectHeadingScript('سلام'), 'arabic');
+
+    // Other scripts
     assert.equal(detectHeadingScript('שלום עולם'), 'hebrew');
     assert.equal(detectHeadingScript('日本語の見出し'), 'jp');
     assert.equal(detectHeadingScript('中文标题'), 'sc');
     assert.equal(detectHeadingScript('हिन्दी शीर्षक'), 'devanagari');
     assert.equal(detectHeadingScript('Architecture'), 'latin');
+
+    // Note-level context disambiguates shared-letter headings (e.g. "# مقدمه" vs "# سلام")
+    const persianNoteHeadings = parseHeadings('# مقدمه\n\nاین یک متن فارسی برای آزمایش است.\n');
+    assert.equal(persianNoteHeadings[0].script, 'persian');
+
+    const arabicNoteHeadings = parseHeadings('# سلام\n\nهذه مقالة عربية للتجربة والكتابة.\n');
+    assert.equal(arabicNoteHeadings[0].script, 'arabic');
   });
 });

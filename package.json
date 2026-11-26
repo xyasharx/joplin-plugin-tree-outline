@@ -24,11 +24,9 @@
   "devDependencies": {
     "@joplin/fork-uslug": "^2.0.10",
     "@types/node": "^26.6.4",
-    "chalk": "^6.0.1",
     "copy-webpack-plugin": "^14.0.0",
     "esbuild-loader": "^4.3.0",
     "fs-extra": "^11.4.1",
-    "glob": "^13.0.6",
     "tar": "^7.5.22",
     "typescript": "^7.0.2",
     "webpack": "^5.111.1",

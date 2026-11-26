@@ -24,21 +24,51 @@ const NAMED_HTML_ENTITIES: Record<string, string> = {
 const RTL_REGEX =
   /[\u0590-\u05FF\u0600-\u06FF\u0700-\u074F\u0750-\u077F\u0780-\u07BF\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]/;
 
+const ARABIC_SCRIPT_REGEX =
+  /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]/;
+
+/** Persian-distinctive letters (پ چ ژ گ ک ی ۀ), Persian digits (۰-۹), and ZWNJ. */
+const PERSIAN_DISTINCTIVE_GLOBAL_RE = /[\u067E\u0686\u0698\u06AF\u06A9\u06CC\u06C0\u06F0-\u06F9\u200C]/g;
+
+/** Standard Arabic-distinctive letters (ك ي ى ة) and Eastern Arabic-Indic digits (٠-٩). */
+const ARABIC_DISTINCTIVE_GLOBAL_RE = /[\u0643\u064A\u0649\u0629\u0660-\u0669]/g;
+
 export function isTextRtl(text: string): boolean {
   return RTL_REGEX.test(text);
 }
 
 /**
- * Detects the specific linguistic script of a heading.
+ * Distinguishes Persian vs. standard Arabic within the shared Arabic Unicode block
+ * using language-distinctive codepoints, falling back to `defaultScript` when a
+ * short string contains only shared letters (e.g. "سلام").
  */
-export function detectHeadingScript(text: string): HeadingScript {
+export function inferArabicBlockScript(
+  text: string,
+  defaultScript: 'persian' | 'arabic' = 'arabic',
+): 'persian' | 'arabic' {
+  const persianCount = text.match(PERSIAN_DISTINCTIVE_GLOBAL_RE)?.length ?? 0;
+  const arabicCount = text.match(ARABIC_DISTINCTIVE_GLOBAL_RE)?.length ?? 0;
+
+  if (persianCount === 0 && arabicCount === 0) {
+    return defaultScript;
+  }
+  return persianCount >= arabicCount ? 'persian' : 'arabic';
+}
+
+/**
+ * Detects the specific linguistic script of a heading, distinguishing Persian
+ * (`پ چ ژ گ ک ی ۀ ۰-۹`) from standard Arabic (`ك ي ى ة ٠-٩`).
+ */
+export function detectHeadingScript(
+  text: string,
+  defaultArabicScript: 'persian' | 'arabic' = 'arabic',
+): HeadingScript {
   if (/[\u3040-\u309F\u30A0-\u30FF]/.test(text)) return 'jp';
   if (/[\u4E00-\u9FFF]/.test(text)) return 'sc';
   if (/[\u0900-\u097F]/.test(text)) return 'devanagari';
   if (/[\u0590-\u05FF]/.test(text)) return 'hebrew';
-  // Matches Arabic/Persian/Urdu ranges including Presentation Forms & Persian digits
-  if (/[\u0600-\u06FF\u0750-\u077F\uFB50-\uFDFF\uFE70-\uFEFF\u06F0-\u06F9]/.test(text)) {
-    return 'persian';
+  if (ARABIC_SCRIPT_REGEX.test(text)) {
+    return inferArabicBlockScript(text, defaultArabicScript);
   }
   return 'latin';
 }
@@ -321,6 +351,7 @@ export function parseHeadings(markdown: string): HeadingNode[] {
   const flatNodes: HeadingNode[] = [];
   const getJoplinSlug = createSlugGenerator();
   const getStableKey = createStableKeyGenerator();
+  const noteArabicScript = inferArabicBlockScript(markdown.slice(0, 4000));
 
   const startLine = findFrontmatterEndLine(lines);
   let activeFenceChar = '';
@@ -390,7 +421,7 @@ export function parseHeadings(markdown: string): HeadingNode[] {
           rawText,
           line: i,
           slug,
-          script: detectHeadingScript(text),
+          script: detectHeadingScript(text, noteArabicScript),
           children: [],
         });
       }
@@ -415,7 +446,7 @@ export function parseHeadings(markdown: string): HeadingNode[] {
             rawText,
             line: i - 1,
             slug,
-            script: detectHeadingScript(text),
+            script: detectHeadingScript(text, noteArabicScript),
             children: [],
           });
         }
@@ -462,6 +493,7 @@ export function parseHtmlHeadings(html: string): HeadingNode[] {
   const flatNodes: HeadingNode[] = [];
   const getJoplinSlug = createSlugGenerator();
   const getStableKey = createStableKeyGenerator();
+  const noteArabicScript = inferArabicBlockScript(masked.slice(0, 4000));
 
   const headingRe = /<h([1-6])\b([^>]*)>([\s\S]*?)<\/h\1>/gi;
   let match: RegExpExecArray | null;
@@ -492,7 +524,7 @@ export function parseHtmlHeadings(html: string): HeadingNode[] {
       line,
       slug,
       hasExplicitId,
-      script: detectHeadingScript(text),
+      script: detectHeadingScript(text, noteArabicScript),
       children: [],
     });
   }

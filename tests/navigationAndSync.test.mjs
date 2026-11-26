@@ -490,11 +490,12 @@ describe('P0 #2: Event-driven push sync, empty-note guard, same-length edits & r
     });
     await host.startPlugin();
 
+    const outlineMessages = host.postedMessages.filter((m) => m.message.type === 'outlineUpdate');
     assert.equal(host.intervalCalls, 0, 'Plugin host must never create setInterval pollers');
     assert.equal(host.dataGetCalls, 0, 'Empty body "" must not trigger redundant joplin.data.get()');
-    assert.equal(host.postedMessages.length, 1);
-    assert.equal(host.postedMessages[0].message.selectionKind, 'single');
-    assert.equal(host.postedMessages[0].message.headings.length, 0);
+    assert.equal(outlineMessages.length, 1);
+    assert.equal(outlineMessages[0].message.selectionKind, 'single');
+    assert.equal(outlineMessages[0].message.headings.length, 0);
   });
 
   it('detects same-length heading edits while skipping redundant pushes for paragraph-only edits', async () => {
@@ -508,8 +509,10 @@ describe('P0 #2: Event-driven push sync, empty-note guard, same-length edits & r
       },
     });
     await host.startPlugin();
-    assert.equal(host.postedMessages.length, 1);
-    assert.equal(host.postedMessages[0].message.headings[0].text, 'Draft');
+    const outlineMessages = () =>
+      host.postedMessages.filter((m) => m.message.type === 'outlineUpdate');
+    assert.equal(outlineMessages().length, 1);
+    assert.equal(outlineMessages()[0].message.headings[0].text, 'Draft');
 
     // Edit paragraph only -> should NOT push an outlineUpdate!
     host.setNote({
@@ -520,7 +523,7 @@ describe('P0 #2: Event-driven push sync, empty-note guard, same-length edits & r
     });
     host.triggerNoteChange();
     await sleep(260);
-    assert.equal(host.postedMessages.length, 1, 'Paragraph-only edit must not rebuild outline DOM');
+    assert.equal(outlineMessages().length, 1, 'Paragraph-only edit must not rebuild outline DOM');
 
     // Rename heading with EXACT SAME character length (# Draft -> # Final) -> MUST push!
     host.setNote({
@@ -531,9 +534,9 @@ describe('P0 #2: Event-driven push sync, empty-note guard, same-length edits & r
     });
     host.triggerNoteChange();
     await sleep(260);
-    assert.equal(host.postedMessages.length, 2, 'Same-length heading rename must push update');
-    assert.equal(host.postedMessages[1].message.noteChanged, false);
-    assert.equal(host.postedMessages[1].message.headings[0].text, 'Final');
+    assert.equal(outlineMessages().length, 2, 'Same-length heading rename must push update');
+    assert.equal(outlineMessages()[1].message.noteChanged, false);
+    assert.equal(outlineMessages()[1].message.headings[0].text, 'Final');
   });
 
   it('handles onSyncComplete and distinguishes multiple selected notes', async () => {
