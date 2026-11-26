@@ -1,5 +1,5 @@
-declare module 'uslug' {
-  interface UslugOptions {
+declare module '@joplin/fork-uslug' {
+  export interface UslugOptions {
     allowedChars?: string;
     lower?: boolean;
     spaces?: boolean;
