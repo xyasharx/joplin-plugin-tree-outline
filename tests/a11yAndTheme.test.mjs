@@ -378,9 +378,9 @@ describe('P2 #7: Joplin Theme Contrast, Modern CSS Tokens & Viewport/Typography 
   it('uses --joplin-url-color for WCAG AA accent and native Joplin theme variables with zero hardcoded contrast bugs', () => {
     const css = fs.readFileSync(distCssPath, 'utf8');
 
-    // WCAG AA accent token
-    assert.ok(css.includes('--nav-accent: var(--joplin-url-color, #155bda);'));
-    assert.ok(!css.includes('--nav-accent: var(--joplin-selected-color'));
+    // WCAG AA accent token (matches both source and esbuild-minified CSS)
+    assert.match(css, /--nav-accent:\s*var\(--joplin-url-color,\s*#155bda\)/i);
+    assert.doesNotMatch(css, /--nav-accent:\s*var\(--joplin-selected-color/);
 
     // Native Joplin theme tokens present
     assert.ok(css.includes('--joplin-search-marker-background-color'));
@@ -392,19 +392,19 @@ describe('P2 #7: Joplin Theme Contrast, Modern CSS Tokens & Viewport/Typography 
     assert.ok(css.includes('--joplin-font-size'));
 
     // Modern CSS enhancements
-    assert.ok(css.includes('color-mix(in srgb,'));
-    assert.ok(css.includes('height: 100dvh;'));
+    assert.match(css, /color-mix\(in srgb,/);
+    assert.match(css, /height:\s*100dvh/);
     assert.ok(css.includes(':focus-visible'));
-    assert.ok(css.includes('@media (pointer: coarse)'));
+    assert.match(css, /@media\s*\(pointer:\s*coarse\)/);
     assert.ok(css.includes('.outline-container.is-mobile'));
-    assert.ok(css.includes('@media (prefers-reduced-motion: reduce)'));
+    assert.match(css, /@media\s*\(prefers-reduced-motion:\s*reduce\)/);
 
     // Regressions eliminated
     assert.ok(!css.includes('100vh'), 'Should use 100%/100dvh instead of 100vh');
-    assert.ok(!css.includes('font-weight: 550'), 'Should use standard 500/600 font weights');
+    assert.doesNotMatch(css, /font-weight:\s*550/, 'Should use standard 500/600 font weights');
     assert.ok(!css.includes('#fff'), 'Should not hardcode #fff backgrounds');
     assert.ok(!css.includes('#888'), 'Should use --joplin-color-faded instead of #888');
-    assert.ok(!css.includes('rgba(255, 214, 0, 0.25)'), 'Should use native Joplin search marker tokens');
+    assert.doesNotMatch(css, /rgba\(\s*255,\s*214,\s*0,\s*0\.25\s*\)/, 'Should use native Joplin search marker tokens');
     assert.ok(
       !css.includes(':not([class*="override-"]) [dir="rtl"]'),
       'Broken descendant space before [dir="rtl"] must stay removed',

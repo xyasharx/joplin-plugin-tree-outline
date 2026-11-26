@@ -1,6 +1,7 @@
 const path = require('path');
 const fs = require('fs-extra');
 const CopyPlugin = require('copy-webpack-plugin');
+const { EsbuildPlugin } = require('esbuild-loader');
 const tar = require('tar');
 
 const EXTERNAL_CONTENT_SCRIPT_LIBRARIES = [
@@ -29,6 +30,9 @@ module.exports = () => {
     alias: {
       api: path.resolve(__dirname, 'api'),
     },
+    // Explicitly keep Node built-in polyfills disabled so mobile-incompatible
+    // Node imports fail fast at build time rather than crashing on Android/iOS.
+    fallback: {},
     extensions: ['.js', '.tsx', '.ts', '.json'],
   };
 
@@ -50,11 +54,19 @@ module.exports = () => {
   const mainConfig = {
     name: 'main',
     mode: 'production',
-    target: 'node',
+    // Platform-neutral ES2020 web target guarantees Desktop & Mobile compatibility
+    // (Joplin executes index.js inside a sandboxed WebView script tag).
+    target: ['web', 'es2020'],
     entry: './src/index.ts',
     resolve: commonResolve,
     optimization: {
-      minimize: false,
+      minimize: true,
+      minimizer: [
+        new EsbuildPlugin({
+          target: 'es2020',
+          css: true,
+        }),
+      ],
     },
     module: {
       rules: [
@@ -69,6 +81,7 @@ module.exports = () => {
       filename: 'index.js',
       path: distDir,
       globalObject: 'this',
+      iife: true,
       clean: true,
     },
     plugins: [
@@ -94,7 +107,12 @@ module.exports = () => {
     entry: './src/webview/outline.ts',
     resolve: commonResolve,
     optimization: {
-      minimize: false,
+      minimize: true,
+      minimizer: [
+        new EsbuildPlugin({
+          target: 'es2020',
+        }),
+      ],
     },
     module: {
       rules: [tsRule],
@@ -110,13 +128,21 @@ module.exports = () => {
     name: 'contentScript',
     dependencies: ['main', 'webview'],
     mode: 'production',
-    target: 'node',
+    target: ['web', 'es2020'],
     entry: './src/contentScripts/codeMirrorScroller.ts',
     resolve: commonResolve,
     externalsType: 'commonjs',
     externals: contentScriptExternals,
     optimization: {
-      minimize: false,
+      minimize: true,
+      minimizer: [
+        new EsbuildPlugin({
+          target: 'es2020',
+          // Preserve CommonJS exports.default for Joplin's CodeMirror PluginLoader
+          // while keeping target: ['web', 'es2020'] to block Node-only imports.
+          format: 'cjs',
+        }),
+      ],
     },
     module: {
       rules: [tsRule],

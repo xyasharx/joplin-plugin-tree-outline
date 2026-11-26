@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [24, 26]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Verify version & manifest parity
+        run: npm run check:version
+
+      - name: TypeScript strict typecheck
+        run: npm run typecheck
+
+      - name: Build and run test suite
+        run: npm test
+
+      - name: Verify .jpl archive output
+        run: |
+          if [ ! -f publish/*.jpl ]; then
+            echo "Error: .jpl archive not found in publish/ directory!"
+            exit 1
+          fi

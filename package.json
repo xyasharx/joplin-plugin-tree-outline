@@ -6,6 +6,7 @@
   "scripts": {
     "dist": "webpack",
     "typecheck": "tsc --noEmit",
+    "check:version": "node scripts/check-version-parity.mjs",
     "test": "npm run dist && node --test tests/*.test.mjs",
     "prepare": "npm run dist"
   },
