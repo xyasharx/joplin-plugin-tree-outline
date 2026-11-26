@@ -1,5 +1,6 @@
 import joplin from 'api';
 import { parseHeadings, isTextRtl } from './parser';
+import { registerToggleControls } from './toggleControls';
 
 const panelHtml = `
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -51,7 +52,7 @@ joplin.plugins.register({
     let isMobile = false;
     try {
       const vInfo = await joplin.versionInfo();
-      isMobile = (vInfo as any)?.platform === 'mobile';
+      isMobile = vInfo?.platform === 'mobile';
     } catch (e) {}
 
     const getSelectedNoteData = async () => {
@@ -151,18 +152,11 @@ joplin.plugins.register({
     await joplin.workspace.onNoteSelectionChange(notifyWebviewToSync);
     await joplin.workspace.onNoteChange(notifyWebviewToSync);
 
-    notifyWebviewToSync();
-
-    await joplin.commands.register({
-      name: 'toggleTreeOutline',
-      label: 'Toggle TreeOutline',
-      iconName: 'fas fa-stream',
-      execute: async () => {
-        const isVisible = await joplin.views.panels.visible(panel);
-        await joplin.views.panels.show(panel, !isVisible);
-      },
+    await registerToggleControls({
+      joplinApi: joplin,
+      panel,
+      isMobile,
+      onPanelShown: notifyWebviewToSync,
     });
-
-    await joplin.views.panels.show(panel, true);
   },
 });
