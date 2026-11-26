@@ -27,6 +27,8 @@ function createJoplinHostMock({
   const keymap = new Map();
   const menuItems = [];
   const toolbarButtons = [];
+  const contentScripts = [];
+  const registeredSections = new Map();
   const registeredSettings = new Map();
   const settingValues = new Map(Object.entries(persistedSettings));
   const panels = new Map();
@@ -34,12 +36,19 @@ function createJoplinHostMock({
   const messageHandlers = new Map();
   let noteSelectionHandler = null;
   let noteChangeHandler = null;
+  let syncCompleteHandler = null;
   let registeredPlugin = null;
 
   const joplin = {
     plugins: {
       async register(plugin) {
         registeredPlugin = plugin;
+      },
+    },
+    contentScripts: {
+      async register(type, id, scriptPath) {
+        callOrder.push(`contentScripts.register:${type}:${id}`);
+        contentScripts.push({ type, id, scriptPath });
       },
     },
     async versionInfo() {
@@ -54,6 +63,10 @@ function createJoplinHostMock({
       };
     },
     settings: {
+      async registerSection(name, section) {
+        if (throwOnSettings) throw new Error('Settings unavailable');
+        registeredSections.set(name, section);
+      },
       async registerSettings(settings) {
         callOrder.push('settings.registerSettings');
         if (throwOnSettings) throw new Error('Settings unavailable');
@@ -78,6 +91,7 @@ function createJoplinHostMock({
       },
       async globalValue(key) {
         if (key === 'noteVisiblePanes') return ['editor', 'viewer'];
+        if (key === 'editor.codeView') return true;
         return undefined;
       },
     },
@@ -157,11 +171,17 @@ function createJoplinHostMock({
       async selectedNote() {
         return selectedNote;
       },
+      async selectedNoteIds() {
+        return selectedNote ? [selectedNote.id] : [];
+      },
       async onNoteSelectionChange(cb) {
         noteSelectionHandler = cb;
       },
       async onNoteChange(cb) {
         noteChangeHandler = cb;
+      },
+      async onSyncComplete(cb) {
+        syncCompleteHandler = cb;
       },
     },
     data: {
@@ -206,6 +226,8 @@ function createJoplinHostMock({
     keymap,
     menuItems,
     toolbarButtons,
+    contentScripts,
+    registeredSections,
     registeredSettings,
     settingValues,
     panels,
@@ -216,6 +238,9 @@ function createJoplinHostMock({
     },
     get noteChangeHandler() {
       return noteChangeHandler;
+    },
+    get syncCompleteHandler() {
+      return syncCompleteHandler;
     },
   };
 }
@@ -270,12 +295,12 @@ describe('TreeOutline desktop & mobile toggle controls (Issue #1)', () => {
     const btnIdx = host.callOrder.indexOf('toolbarButtons.create:toggleTreeOutlineToolbarButton:noteToolbar');
     assert.ok(cmdIdx !== -1 && menuIdx > cmdIdx && btnIdx > cmdIdx);
 
-    // 7. Visible by default on first run and initial sync dispatched
+    // 7. Visible by default on first run and initial push-based outlineUpdate dispatched
     const [panelHandle, panelState] = Array.from(host.panels.entries())[0];
     assert.equal(panelState.visible, true);
     assert.equal(host.postedMessages.length, 1);
     assert.equal(host.postedMessages[0].handle, panelHandle);
-    assert.equal(host.postedMessages[0].message.type, 'noteSwitched');
+    assert.equal(host.postedMessages[0].message.type, 'outlineUpdate');
   });
 
   it('toggles visibility off and on, persists state, and syncs webview when shown', async () => {
@@ -296,7 +321,8 @@ describe('TreeOutline desktop & mobile toggle controls (Issue #1)', () => {
     await host.joplin.commands.execute('toggleTreeOutline');
     assert.equal(await host.joplin.views.panels.visible(panelHandle), true);
     assert.equal(host.settingValues.get('panelVisible'), true);
-    assert.equal(host.postedMessages.length, 2, 'Should immediately sync webview when showing');
+    assert.equal(host.postedMessages.length, 2, 'Should immediately push outlineUpdate when showing');
+    assert.equal(host.postedMessages[1].message.type, 'outlineUpdate');
   });
 
   it('remembers hidden state across Joplin restarts on desktop', async () => {
@@ -357,12 +383,13 @@ describe('TreeOutline desktop & mobile toggle controls (Issue #1)', () => {
     assert.equal(await host.joplin.views.panels.visible(panelHandle), false);
   });
 
-  it('parses both ATX and Setext headings via pollNote without errors', async () => {
+  it('parses both ATX and Setext headings on webview ready handshake without errors', async () => {
     const host = createJoplinHostMock({
       platform: 'desktop',
       selectedNote: {
         id: 'note-1',
         title: 'Test Note',
+        markup_language: 1,
         body: 'Setext H1\n=========\n\nSetext H2\n---------\n\n### ATX H3\n',
       },
     });
@@ -370,22 +397,18 @@ describe('TreeOutline desktop & mobile toggle controls (Issue #1)', () => {
 
     const [panelHandle] = Array.from(host.panels.keys());
     const handler = host.messageHandlers.get(panelHandle);
-    const result = await handler({
-      type: 'pollNote',
-      clientNoteId: '',
-      clientBodyLength: -1,
-      force: true,
-    });
+    await handler({ type: 'ready' });
 
-    assert.equal(result.changed, true);
-    assert.equal(result.headings.length, 1);
-    assert.equal(result.headings[0].text, 'Setext H1');
-    assert.equal(result.headings[0].rawText, 'Setext H1');
-    assert.equal(result.headings[0].children[0].text, 'Setext H2');
-    assert.equal(result.headings[0].children[0].children[0].text, 'ATX H3');
+    const lastMsg = host.postedMessages[host.postedMessages.length - 1].message;
+    assert.equal(lastMsg.type, 'outlineUpdate');
+    assert.equal(lastMsg.headings.length, 1);
+    assert.equal(lastMsg.headings[0].text, 'Setext H1');
+    assert.equal(lastMsg.headings[0].rawText, 'Setext H1');
+    assert.equal(lastMsg.headings[0].children[0].text, 'Setext H2');
+    assert.equal(lastMsg.headings[0].children[0].children[0].text, 'ATX H3');
   });
 
-  it('produces a valid .jpl archive in publish/ without stray TypeScript files', () => {
+  it('produces a valid .jpl archive in publish/ containing index, webview, and CM6 content script', () => {
     const jplPath = path.join(repoRoot, 'publish', 'com.xyasharx.treeoutline.jpl');
     const distDir = path.join(repoRoot, 'dist');
     assert.ok(fs.existsSync(jplPath), 'publish/com.xyasharx.treeoutline.jpl should exist');
@@ -395,6 +418,15 @@ describe('TreeOutline desktop & mobile toggle controls (Issue #1)', () => {
     assert.ok(distEntries.includes('index.js'));
     assert.ok(distEntries.includes('manifest.json'));
     assert.ok(distEntries.includes('webview'));
+    assert.ok(distEntries.includes('contentScripts'));
+    assert.ok(
+      fs.existsSync(path.join(distDir, 'contentScripts', 'codeMirrorScroller.js')),
+      'dist/contentScripts/codeMirrorScroller.js should exist',
+    );
+    assert.ok(
+      fs.existsSync(path.join(distDir, 'webview', 'outline.js')),
+      'dist/webview/outline.js should exist',
+    );
     assert.equal(
       distEntries.some((entry) => entry.endsWith('.ts')),
       false,

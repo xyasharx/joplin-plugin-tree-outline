@@ -80,6 +80,20 @@ export const SettingStorage = {
 
 export type SettingStorage = (typeof SettingStorage)[keyof typeof SettingStorage];
 
+export const ContentScriptType = {
+  MarkdownItPlugin: 'markdownItPlugin',
+  CodeMirrorPlugin: 'codeMirrorPlugin',
+} as const;
+
+export type ContentScriptType = (typeof ContentScriptType)[keyof typeof ContentScriptType];
+
+export const MarkupLanguage = {
+  Markdown: 1,
+  Html: 2,
+} as const;
+
+export type MarkupLanguage = (typeof MarkupLanguage)[keyof typeof MarkupLanguage];
+
 export interface SettingItem {
   value: any;
   type: SettingItemType;
@@ -92,6 +106,39 @@ export interface SettingItem {
   storage?: SettingStorage;
 }
 
+export interface SettingSection {
+  label: string;
+  iconName?: string;
+  description?: string;
+  name?: string;
+}
+
+export interface ContentScriptContext {
+  pluginId: string;
+  contentScriptId: string;
+  postMessage: (message: any) => Promise<any>;
+}
+
+export interface CodeMirrorControl {
+  /** CodeMirror 6 EditorView instance (present on CM6 desktop & mobile). */
+  editor?: any;
+  /** Truthy on Joplin's CodeMirror 6 wrapper (CodeMirror5Emulation). */
+  cm6?: any;
+  addExtension?: (extension: any | any[]) => void;
+  supportsCommand?: (name: string) => boolean;
+  execCommand?: (name: string, ...args: any[]) => any;
+  registerCommand?: (name: string, callback: (...args: any[]) => any) => void;
+  /** Legacy CodeMirror 5 extension registration. */
+  defineExtension?: (name: string, callback: (...args: any[]) => any) => void;
+}
+
+export interface MarkdownEditorContentScriptModule {
+  plugin: (editorControl: CodeMirrorControl) => void;
+  codeMirrorResources?: string[];
+  codeMirrorOptions?: Record<string, any>;
+  assets?: () => any[];
+}
+
 export interface JoplinApi {
   plugins: {
     register(script: { onStart?: () => Promise<void> }): Promise<void>;
@@ -99,6 +146,10 @@ export interface JoplinApi {
   commands: {
     register(command: Command): Promise<void>;
     execute(commandName: string, ...args: any[]): Promise<any>;
+  };
+  contentScripts?: {
+    register(type: ContentScriptType, id: string, scriptPath: string): Promise<void>;
+    onMessage?: (contentScriptId: string, callback: (message: any) => Promise<any> | any) => Promise<void>;
   };
   views: {
     panels: {
@@ -128,6 +179,7 @@ export interface JoplinApi {
     };
   };
   settings: {
+    registerSection?: (name: string, section: SettingSection) => Promise<void>;
     registerSettings(settings: Record<string, SettingItem>): Promise<void>;
     value(key: string): Promise<any>;
     setValue(key: string, value: any): Promise<void>;
@@ -135,8 +187,10 @@ export interface JoplinApi {
   };
   workspace: {
     selectedNote(): Promise<any>;
-    onNoteSelectionChange(callback: () => void | Promise<void>): Promise<void>;
-    onNoteChange(callback: () => void | Promise<void>): Promise<void>;
+    selectedNoteIds?: () => Promise<string[]>;
+    onNoteSelectionChange(callback: (event?: any) => void | Promise<void>): Promise<void>;
+    onNoteChange(callback: (event?: any) => void | Promise<void>): Promise<void>;
+    onSyncComplete?: (callback: (event?: { withErrors?: boolean }) => void | Promise<void>) => Promise<void>;
   };
   data: {
     get(path: string[], query?: any): Promise<any>;
