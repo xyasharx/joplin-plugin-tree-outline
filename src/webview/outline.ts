@@ -64,7 +64,7 @@ const EXPAND_ALL_ICON_SVG =
   '</svg>';
 
 const CHEVRON_SVG =
-  '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="width:12px;height:12px;min-width:12px;max-width:12px;display:block;"><polyline points="6 9 12 15 18 9"></polyline></svg>';
+  '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg>';
 
 const api: JoplinWebviewApi | null =
   typeof webviewApi !== 'undefined' ? webviewApi : window.webviewApi ?? null;
@@ -75,6 +75,7 @@ let currentMarkupLanguage = 1;
 let currentTextWrapMode: TextWrapMode = 'auto';
 let allHeadings: HeadingNode[] = [];
 let activeHeadingKey: string | null = null;
+let focusedHeadingKey: string | null = null;
 let isAllCollapsed = false;
 let lastAppliedVersion = -1;
 let initialized = false;
@@ -82,7 +83,7 @@ let initialized = false;
 /** Maps noteId -> Set of collapsed stable HeadingNode.key values. */
 const collapsedByNote = new Map<string, Set<string>>();
 
-/** Maps currently rendered node key -> HeadingNode for delegated click handling. */
+/** Maps currently rendered node key -> HeadingNode for delegated click & keyboard handling. */
 const renderedNodesByKey = new Map<string, HeadingNode>();
 
 function safeStorageGet(key: string): string | null {
@@ -268,7 +269,7 @@ function setDirection(isRtl: boolean): void {
 function updateSearchClearVisibility(query: string): void {
   const clearBtn = getSearchClearBtn();
   if (clearBtn) {
-    clearBtn.style.display = query ? 'block' : 'none';
+    clearBtn.style.display = query ? 'inline-flex' : 'none';
   }
 }
 
@@ -353,39 +354,229 @@ function appendHighlightedText(container: HTMLElement, text: string, searchQuery
   }
 }
 
+/**
+ * Returns all currently visible [role="treeitem"] elements in visual top-to-bottom order,
+ * skipping subtrees nested inside collapsed parent nodes.
+ */
+function getVisibleTreeItems(): HTMLElement[] {
+  const treeContainer = getTreeContainer();
+  if (!treeContainer) return [];
+
+  const visible: HTMLElement[] = [];
+
+  const walk = (parentEl: HTMLElement): void => {
+    const kids = parentEl.children;
+    if (!kids) return;
+    for (let i = 0; i < kids.length; i++) {
+      const child = kids[i] as HTMLElement;
+      if (child.getAttribute?.('role') === 'treeitem') {
+        visible.push(child);
+        if (!child.classList.contains('is-collapsed')) {
+          const grandKids = child.children;
+          if (grandKids) {
+            for (let j = 0; j < grandKids.length; j++) {
+              const maybeGroup = grandKids[j] as HTMLElement;
+              if (maybeGroup.classList?.contains('tree-item-children')) {
+                walk(maybeGroup);
+              }
+            }
+          }
+        }
+      }
+    }
+  };
+
+  walk(treeContainer);
+  return visible;
+}
+
+function getAllTreeItems(): HTMLElement[] {
+  const treeContainer = getTreeContainer();
+  if (!treeContainer) return [];
+
+  const all: HTMLElement[] = [];
+  const walk = (el: HTMLElement): void => {
+    const kids = el.children;
+    if (!kids) return;
+    for (let i = 0; i < kids.length; i++) {
+      const child = kids[i] as HTMLElement;
+      if (child.getAttribute?.('role') === 'treeitem') {
+        all.push(child);
+      }
+      walk(child);
+    }
+  };
+
+  walk(treeContainer);
+  return all;
+}
+
+function setRovingFocus(
+  targetItem: HTMLElement,
+  { moveDomFocus = true }: { moveDomFocus?: boolean } = {},
+): void {
+  const allItems = getAllTreeItems();
+  for (const item of allItems) {
+    item.setAttribute('tabindex', item === targetItem ? '0' : '-1');
+  }
+
+  const key = targetItem.getAttribute('data-node-key');
+  if (key) {
+    focusedHeadingKey = key;
+  }
+
+  if (moveDomFocus) {
+    targetItem.focus();
+    if (typeof targetItem.scrollIntoView === 'function') {
+      targetItem.scrollIntoView({ block: 'nearest' });
+    }
+  }
+}
+
+function syncRovingTabIndex(): void {
+  const visible = getVisibleTreeItems();
+  if (visible.length === 0) return;
+
+  const preferred =
+    visible.find((el) => focusedHeadingKey !== null && el.getAttribute('data-node-key') === focusedHeadingKey) ??
+    visible.find((el) => activeHeadingKey !== null && el.getAttribute('data-node-key') === activeHeadingKey) ??
+    visible[0];
+
+  setRovingFocus(preferred, { moveDomFocus: false });
+}
+
+function getDirectChildrenGroup(treeItem: HTMLElement): HTMLElement | null {
+  const kids = treeItem.children;
+  if (!kids) return null;
+  for (let i = 0; i < kids.length; i++) {
+    const child = kids[i] as HTMLElement;
+    if (child.classList?.contains('tree-item-children')) {
+      return child;
+    }
+  }
+  return null;
+}
+
+function getFirstDirectChildTreeItem(treeItem: HTMLElement): HTMLElement | null {
+  const group = getDirectChildrenGroup(treeItem);
+  if (!group?.children) return null;
+  for (let i = 0; i < group.children.length; i++) {
+    const child = group.children[i] as HTMLElement;
+    if (child.getAttribute?.('role') === 'treeitem') {
+      return child;
+    }
+  }
+  return null;
+}
+
+function getParentTreeItem(treeItem: HTMLElement): HTMLElement | null {
+  const parentGroup = treeItem.parentElement;
+  if (!parentGroup || !parentGroup.classList?.contains('tree-item-children')) {
+    return null;
+  }
+  const owner = parentGroup.parentElement;
+  return owner && owner.getAttribute?.('role') === 'treeitem' ? owner : null;
+}
+
+function setBranchCollapsed(treeItem: HTMLElement, collapsed: boolean): void {
+  const nodeKey = treeItem.getAttribute('data-node-key');
+  if (!nodeKey || !getDirectChildrenGroup(treeItem)) return;
+
+  treeItem.classList.toggle('is-collapsed', collapsed);
+  treeItem.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+
+  const collapsedSet = getCollapsedSet(currentNoteId);
+  if (collapsed) {
+    collapsedSet.add(nodeKey);
+  } else {
+    collapsedSet.delete(nodeKey);
+  }
+
+  syncCollapseAllButtonState();
+
+  // If collapsing hid the previously roved descendant, move roving tabindex onto this item
+  const visible = getVisibleTreeItems();
+  const stillVisible = visible.some(
+    (el) => focusedHeadingKey !== null && el.getAttribute('data-node-key') === focusedHeadingKey,
+  );
+  if (!stillVisible) {
+    setRovingFocus(treeItem, { moveDomFocus: false });
+  }
+}
+
+function activateHeadingItem(treeItem: HTMLElement): void {
+  const nodeKey = treeItem.getAttribute('data-node-key');
+  if (!nodeKey) return;
+  const node = renderedNodesByKey.get(nodeKey);
+  if (!node) return;
+
+  const prevActiveRows = document.querySelectorAll('.tree-item-self.is-active');
+  for (const activeEl of prevActiveRows) {
+    activeEl.classList.remove('is-active');
+  }
+  for (const item of getAllTreeItems()) {
+    item.removeAttribute('aria-current');
+  }
+
+  const row = treeItem.querySelector('.tree-item-self') as HTMLElement | null;
+  row?.classList.add('is-active');
+  treeItem.setAttribute('aria-current', 'location');
+  activeHeadingKey = node.key;
+  setRovingFocus(treeItem, { moveDomFocus: false });
+
+  if (api?.postMessage) {
+    void api.postMessage({
+      type: 'jumpToHeading',
+      line: node.line,
+      slug: node.slug,
+      text: node.text,
+      level: node.level,
+      hasExplicitId: node.hasExplicitId,
+      markupLanguage: currentMarkupLanguage,
+    });
+  }
+}
+
 function createNodeElement(
   node: HeadingNode,
   searchQuery: string,
   collapsedSet: Set<string>,
+  depth: number,
+  posInSet: number,
+  setSize: number,
 ): HTMLElement {
   renderedNodesByKey.set(node.key, node);
 
   const hasChildren = Boolean(node.children && node.children.length > 0);
   const isCollapsed = hasChildren && !searchQuery && collapsedSet.has(node.key);
+  const isActive = activeHeadingKey !== null && activeHeadingKey === node.key;
 
   const item = document.createElement('div');
   item.className = isCollapsed ? 'tree-item is-collapsed' : 'tree-item';
   item.id = node.id;
   item.setAttribute('role', 'treeitem');
+  item.setAttribute('tabindex', '-1');
+  item.setAttribute('aria-level', String(depth));
+  item.setAttribute('aria-posinset', String(posInSet));
+  item.setAttribute('aria-setsize', String(setSize));
   item.setAttribute('data-level', String(node.level));
   item.setAttribute('data-node-key', node.key);
   if (hasChildren) {
     item.setAttribute('aria-expanded', isCollapsed ? 'false' : 'true');
   }
+  if (isActive) {
+    item.setAttribute('aria-current', 'location');
+  }
 
   const self = document.createElement('div');
-  self.className = 'tree-item-self';
+  self.className = isActive ? 'tree-item-self is-active' : 'tree-item-self';
   self.setAttribute('data-level', String(node.level));
   self.setAttribute('data-script', node.script || 'latin');
   self.setAttribute('data-node-key', node.key);
 
-  if (activeHeadingKey !== null && activeHeadingKey === node.key) {
-    self.classList.add('is-active');
-    self.setAttribute('aria-current', 'location');
-  }
-
-  const icon = document.createElement('div');
+  const icon = document.createElement('span');
   icon.className = hasChildren ? 'collapse-icon' : 'collapse-icon is-hidden';
+  icon.setAttribute('aria-hidden', 'true');
   icon.setAttribute('data-node-key', node.key);
   icon.innerHTML = CHEVRON_SVG;
 
@@ -402,8 +593,11 @@ function createNodeElement(
     const childrenContainer = document.createElement('div');
     childrenContainer.className = 'tree-item-children';
     childrenContainer.setAttribute('role', 'group');
-    for (const child of node.children) {
-      childrenContainer.appendChild(createNodeElement(child, searchQuery, collapsedSet));
+    const childCount = node.children.length;
+    for (let i = 0; i < childCount; i++) {
+      childrenContainer.appendChild(
+        createNodeElement(node.children[i], searchQuery, collapsedSet, depth + 1, i + 1, childCount),
+      );
     }
     item.appendChild(childrenContainer);
   }
@@ -414,6 +608,8 @@ function createNodeElement(
 function renderStatusMessage(treeContainer: HTMLElement, text: string): void {
   const status = document.createElement('div');
   status.className = 'outline-status';
+  status.setAttribute('role', 'status');
+  status.setAttribute('aria-live', 'polite');
   status.textContent = text;
   if (typeof treeContainer.replaceChildren === 'function') {
     treeContainer.replaceChildren(status);
@@ -484,8 +680,11 @@ function renderTree(
 
   const collapsedSet = getCollapsedSet(currentNoteId);
   const fragment = document.createDocumentFragment();
-  for (const node of nodesToRender) {
-    fragment.appendChild(createNodeElement(node, query, collapsedSet));
+  const rootCount = nodesToRender.length;
+  for (let i = 0; i < rootCount; i++) {
+    fragment.appendChild(
+      createNodeElement(nodesToRender[i], query, collapsedSet, 1, i + 1, rootCount),
+    );
   }
 
   if (typeof treeContainer.replaceChildren === 'function') {
@@ -501,6 +700,7 @@ function renderTree(
     treeContainer.scrollTop = 0;
   }
 
+  syncRovingTabIndex();
   syncCollapseAllButtonState();
 }
 
@@ -513,17 +713,9 @@ function handleTreeClick(event: Event): void {
   if (collapseIcon && !collapseIcon.classList.contains('is-hidden')) {
     event.stopPropagation();
     const treeItem = collapseIcon.closest('.tree-item') as HTMLElement | null;
-    const nodeKey = collapseIcon.getAttribute('data-node-key');
-    if (treeItem && nodeKey) {
-      const nowCollapsed = treeItem.classList.toggle('is-collapsed');
-      treeItem.setAttribute('aria-expanded', nowCollapsed ? 'false' : 'true');
-      const collapsedSet = getCollapsedSet(currentNoteId);
-      if (nowCollapsed) {
-        collapsedSet.add(nodeKey);
-      } else {
-        collapsedSet.delete(nodeKey);
-      }
-      syncCollapseAllButtonState();
+    if (treeItem) {
+      const nowCollapsed = !treeItem.classList.contains('is-collapsed');
+      setBranchCollapsed(treeItem, nowCollapsed);
     }
     return;
   }
@@ -532,30 +724,104 @@ function handleTreeClick(event: Event): void {
   const row = target.closest('.tree-item-self') as HTMLElement | null;
   if (!row) return;
 
-  const nodeKey = row.getAttribute('data-node-key');
-  if (!nodeKey) return;
-  const node = renderedNodesByKey.get(nodeKey);
-  if (!node) return;
+  const treeItem = row.closest('.tree-item') as HTMLElement | null;
+  if (!treeItem) return;
 
-  const actives = document.querySelectorAll('.tree-item-self.is-active');
-  for (const activeEl of actives) {
-    activeEl.classList.remove('is-active');
-    activeEl.removeAttribute('aria-current');
-  }
-  row.classList.add('is-active');
-  row.setAttribute('aria-current', 'location');
-  activeHeadingKey = node.key;
+  activateHeadingItem(treeItem);
+}
 
-  if (api?.postMessage) {
-    void api.postMessage({
-      type: 'jumpToHeading',
-      line: node.line,
-      slug: node.slug,
-      text: node.text,
-      level: node.level,
-      hasExplicitId: node.hasExplicitId,
-      markupLanguage: currentMarkupLanguage,
-    });
+/**
+ * Full W3C WAI-ARIA APG Tree View keyboard interaction with RTL direction support:
+ * - ArrowDown / ArrowUp: next / previous visible treeitem
+ * - ArrowRight (LTR) / ArrowLeft (RTL): expand collapsed parent, or move to first child
+ * - ArrowLeft (LTR) / ArrowRight (RTL): collapse expanded parent, or move to parent
+ * - Home / End: first / last visible treeitem
+ * - Enter / Space: activate focused heading (jump + set aria-current="location")
+ * - *: expand all collapsed siblings at the same level
+ */
+function handleTreeKeyDown(event: KeyboardEvent): void {
+  const target = event.target as HTMLElement | null;
+  const treeItem = target?.closest('.tree-item') as HTMLElement | null;
+  if (!treeItem) return;
+
+  const visible = getVisibleTreeItems();
+  const currentIndex = visible.indexOf(treeItem);
+  if (currentIndex === -1) return;
+
+  const isRtl = getOutlineContainer()?.getAttribute('dir') === 'rtl';
+  const expandKey = isRtl ? 'ArrowLeft' : 'ArrowRight';
+  const collapseKey = isRtl ? 'ArrowRight' : 'ArrowLeft';
+
+  switch (event.key) {
+    case 'ArrowDown': {
+      event.preventDefault();
+      if (currentIndex < visible.length - 1) {
+        setRovingFocus(visible[currentIndex + 1]);
+      }
+      break;
+    }
+    case 'ArrowUp': {
+      event.preventDefault();
+      if (currentIndex > 0) {
+        setRovingFocus(visible[currentIndex - 1]);
+      }
+      break;
+    }
+    case 'Home': {
+      event.preventDefault();
+      setRovingFocus(visible[0]);
+      break;
+    }
+    case 'End': {
+      event.preventDefault();
+      setRovingFocus(visible[visible.length - 1]);
+      break;
+    }
+    case expandKey: {
+      event.preventDefault();
+      const expanded = treeItem.getAttribute('aria-expanded');
+      if (expanded === 'false') {
+        setBranchCollapsed(treeItem, false);
+      } else if (expanded === 'true') {
+        const firstChild = getFirstDirectChildTreeItem(treeItem);
+        if (firstChild) {
+          setRovingFocus(firstChild);
+        }
+      }
+      break;
+    }
+    case collapseKey: {
+      event.preventDefault();
+      const expanded = treeItem.getAttribute('aria-expanded');
+      if (expanded === 'true') {
+        setBranchCollapsed(treeItem, true);
+      } else {
+        const parentItem = getParentTreeItem(treeItem);
+        if (parentItem) {
+          setRovingFocus(parentItem);
+        }
+      }
+      break;
+    }
+    case 'Enter':
+    case ' ': {
+      event.preventDefault();
+      activateHeadingItem(treeItem);
+      break;
+    }
+    case '*': {
+      event.preventDefault();
+      const parentContainer = treeItem.parentElement;
+      if (parentContainer?.children) {
+        for (let i = 0; i < parentContainer.children.length; i++) {
+          const sibling = parentContainer.children[i] as HTMLElement;
+          if (sibling.getAttribute?.('aria-expanded') === 'false') {
+            setBranchCollapsed(sibling, false);
+          }
+        }
+      }
+      break;
+    }
   }
 }
 
@@ -575,10 +841,14 @@ function applyOutlineUpdate(msg: OutlineUpdateMessage): void {
 
   if (noteChanged) {
     activeHeadingKey = null;
+    focusedHeadingKey = null;
   } else {
-    // Prune stale collapsed/active keys if headings were deleted in this note
+    // Prune stale collapsed/active/focused keys if headings were deleted in this note
     if (activeHeadingKey !== null && !validKeys.has(activeHeadingKey)) {
       activeHeadingKey = null;
+    }
+    if (focusedHeadingKey !== null && !validKeys.has(focusedHeadingKey)) {
+      focusedHeadingKey = null;
     }
     const collapsedSet = getCollapsedSet(currentNoteId);
     for (const key of Array.from(collapsedSet)) {
@@ -588,6 +858,7 @@ function applyOutlineUpdate(msg: OutlineUpdateMessage): void {
     }
   }
 
+  getOutlineContainer()?.classList.toggle('is-mobile', Boolean(msg.isMobile));
   setDirection(Boolean(msg.isRtl));
 
   const searchInput = getSearchInput();
@@ -609,17 +880,6 @@ function handleIncomingMessage(rawEvent: WebviewIncomingEvent): void {
   }
 }
 
-function bindButtonActivation(el: HTMLElement | null, handler: () => void): void {
-  if (!el) return;
-  el.addEventListener('click', handler);
-  el.addEventListener('keydown', (e: KeyboardEvent) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      handler();
-    }
-  });
-}
-
 function initEventHandlers(): void {
   if (initialized) return;
   initialized = true;
@@ -637,7 +897,7 @@ function initEventHandlers(): void {
   //    authoritative joplin.settings arrive via preferencesUpdate.
   applyTextWrapMode(readCachedTextWrapMode());
 
-  bindButtonActivation(wrapToggleBtn, () => {
+  wrapToggleBtn?.addEventListener('click', () => {
     const currentlyWrapped = Boolean(container?.classList.contains('is-wrapped'));
     const nextMode: TextWrapMode = currentlyWrapped ? 'nowrap' : 'wrapped';
     applyTextWrapMode(nextMode);
@@ -657,7 +917,7 @@ function initEventHandlers(): void {
   });
 
   // 2. Search toggle
-  bindButtonActivation(searchToggleBtn, () => {
+  searchToggleBtn?.addEventListener('click', () => {
     const currentlyVisible = Boolean(searchContainer?.classList.contains('is-visible'));
     setSearchOpen(!currentlyVisible);
   });
@@ -684,7 +944,7 @@ function initEventHandlers(): void {
   });
 
   // 4. Clear search button
-  bindButtonActivation(searchClearBtn, () => {
+  searchClearBtn?.addEventListener('click', () => {
     if (searchInput) {
       searchInput.value = '';
     }
@@ -694,7 +954,7 @@ function initEventHandlers(): void {
   });
 
   // 5. Collapse / Expand all
-  bindButtonActivation(collapseAllBtn, () => {
+  collapseAllBtn?.addEventListener('click', () => {
     const collapsibleKeys = collectCollapsibleKeys(allHeadings);
     if (collapsibleKeys.length === 0) return;
 
@@ -709,22 +969,22 @@ function initEventHandlers(): void {
       collapsedSet.clear();
     }
 
-    const treeItems = document.querySelectorAll('.tree-item');
-    for (const item of treeItems) {
-      if (item.querySelector('.tree-item-children')) {
+    for (const item of getAllTreeItems()) {
+      if (getDirectChildrenGroup(item)) {
         item.classList.toggle('is-collapsed', nextCollapsed);
         item.setAttribute('aria-expanded', nextCollapsed ? 'false' : 'true');
       }
     }
 
+    syncRovingTabIndex();
     syncCollapseAllButtonState();
   });
 
-  // 6. Delegated click handler on tree container
+  // 6. Delegated click & W3C APG keyboard navigation on tree container
   treeContainer?.addEventListener('click', handleTreeClick);
+  treeContainer?.addEventListener('keydown', handleTreeKeyDown);
 
   // 7. Request a lightweight diff sync when panel regains visibility/focus
-  //    (covers mobile re-entering a note without any background interval polling)
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible' && api?.postMessage) {
       void api.postMessage({ type: 'requestSync', force: false });
