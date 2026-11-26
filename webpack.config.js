@@ -104,7 +104,10 @@ module.exports = () => {
     dependencies: ['main'],
     mode: 'production',
     target: ['web', 'es2020'],
-    entry: './src/webview/outline.ts',
+    entry: {
+      'webview/outline': './src/webview/outline.ts',
+      'contentScripts/viewerScrollSpyRuntime': './src/contentScripts/viewerScrollSpyRuntime.ts',
+    },
     resolve: commonResolve,
     optimization: {
       minimize: true,
@@ -118,7 +121,7 @@ module.exports = () => {
       rules: [tsRule],
     },
     output: {
-      filename: 'webview/outline.js',
+      filename: '[name].js',
       path: distDir,
       iife: true,
     },
@@ -129,7 +132,10 @@ module.exports = () => {
     dependencies: ['main', 'webview'],
     mode: 'production',
     target: ['web', 'es2020'],
-    entry: './src/contentScripts/codeMirrorScroller.ts',
+    entry: {
+      'contentScripts/codeMirrorScroller': './src/contentScripts/codeMirrorScroller.ts',
+      'contentScripts/viewerScrollSpyPlugin': './src/contentScripts/viewerScrollSpyPlugin.ts',
+    },
     resolve: commonResolve,
     externalsType: 'commonjs',
     externals: contentScriptExternals,
@@ -138,7 +144,7 @@ module.exports = () => {
       minimizer: [
         new EsbuildPlugin({
           target: 'es2020',
-          // Preserve CommonJS exports.default for Joplin's CodeMirror PluginLoader
+          // Preserve CommonJS exports.default for Joplin's PluginLoader
           // while keeping target: ['web', 'es2020'] to block Node-only imports.
           format: 'cjs',
         }),
@@ -148,7 +154,7 @@ module.exports = () => {
       rules: [tsRule],
     },
     output: {
-      filename: 'contentScripts/codeMirrorScroller.js',
+      filename: '[name].js',
       path: distDir,
       library: {
         name: 'default',

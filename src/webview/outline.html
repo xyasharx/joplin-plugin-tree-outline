@@ -25,6 +25,16 @@
           <line x1="3" y1="21" x2="10" y2="14"></line>
         </svg>
       </button>
+      <button type="button" class="clickable-icon nav-action-button" id="insert-toc-btn" aria-label="Insert Markdown Table of Contents" title="Insert Markdown Table of Contents">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <line x1="8" y1="6" x2="21" y2="6"></line>
+          <line x1="8" y1="12" x2="21" y2="12"></line>
+          <line x1="8" y1="18" x2="21" y2="18"></line>
+          <line x1="3" y1="6" x2="3.01" y2="6"></line>
+          <line x1="3" y1="12" x2="3.01" y2="12"></line>
+          <line x1="3" y1="18" x2="3.01" y2="18"></line>
+        </svg>
+      </button>
     </div>
     <div class="search-input-container" id="search-container">
       <input type="search" id="search-input" placeholder="Filter headings..." aria-label="Filter headings" autocomplete="off">
@@ -34,4 +44,11 @@
   <div class="outline-tree" id="outline-tree" role="tree" aria-label="Note outline">
     <div class="outline-status" role="status" aria-live="polite">Select a note to view outline</div>
   </div>
+  <div class="outline-context-menu" id="outline-context-menu" role="menu" aria-label="Heading actions" hidden>
+    <button type="button" class="context-menu-item" role="menuitem" data-action="copy-markdown">Copy Joplin Markdown link</button>
+    <button type="button" class="context-menu-item" role="menuitem" data-action="copy-slug">Copy anchor slug (#slug)</button>
+    <div class="context-menu-separator" role="separator"></div>
+    <button type="button" class="context-menu-item" role="menuitem" data-action="insert-toc">Insert Markdown TOC into note</button>
+  </div>
+  <div class="outline-toast" id="outline-toast" role="status" aria-live="polite" hidden></div>
 </div>

@@ -5,10 +5,19 @@ import type {
 } from 'api/types';
 
 const SCROLL_TO_LINE_COMMAND = 'treeOutline.scrollToLine';
+const SCROLL_SPY_THROTTLE_MS = 140;
+const VIEWPORT_TOP_OFFSET_PX = 24;
 
 interface CodeMirror6ViewModule {
   EditorView?: {
-    scrollIntoView?: (pos: number, options?: { y?: 'nearest' | 'start' | 'end' | 'center' }) => unknown;
+    scrollIntoView?: (
+      pos: number,
+      options?: { y?: 'nearest' | 'start' | 'end' | 'center' },
+    ) => unknown;
+    domEventHandlers?: (handlers: Record<string, (event: Event, view: any) => boolean | void>) => unknown;
+  };
+  ViewPlugin?: {
+    fromClass?: (pluginClass: new (view: any) => { update?: (update: any) => void; destroy?: () => void }) => unknown;
   };
 }
 
@@ -20,6 +29,7 @@ interface CodeMirror6StateModule {
 
 function loadCodeMirror6Modules(): {
   EditorView: CodeMirror6ViewModule['EditorView'] | null;
+  ViewPlugin: CodeMirror6ViewModule['ViewPlugin'] | null;
   EditorSelection: CodeMirror6StateModule['EditorSelection'] | null;
 } {
   try {
@@ -32,19 +42,156 @@ function loadCodeMirror6Modules(): {
     const stateMod: CodeMirror6StateModule = require('@codemirror/state');
     return {
       EditorView: viewMod?.EditorView ?? null,
+      ViewPlugin: viewMod?.ViewPlugin ?? null,
       EditorSelection: stateMod?.EditorSelection ?? null,
     };
   } catch {
-    return { EditorView: null, EditorSelection: null };
+    return { EditorView: null, ViewPlugin: null, EditorSelection: null };
   }
 }
 
-export default (_context: ContentScriptContext): MarkdownEditorContentScriptModule => {
+function resolveCursorZeroBasedLine(view: any): number | null {
+  try {
+    const doc = view?.state?.doc;
+    const head = view?.state?.selection?.main?.head;
+    if (!doc || typeof doc.lineAt !== 'function' || typeof head !== 'number') {
+      return null;
+    }
+    const clampedPos = Math.min(Math.max(0, head), doc.length);
+    return Math.max(0, doc.lineAt(clampedPos).number - 1);
+  } catch {
+    return null;
+  }
+}
+
+function resolveViewportTopZeroBasedLine(view: any): number | null {
+  try {
+    const doc = view?.state?.doc;
+    if (!doc || typeof doc.lineAt !== 'function') {
+      return null;
+    }
+
+    if (typeof view.lineBlockAtHeight === 'function' && view.scrollDOM) {
+      const scrollTop = typeof view.scrollDOM.scrollTop === 'number' ? view.scrollDOM.scrollTop : 0;
+      const block = view.lineBlockAtHeight(Math.max(0, scrollTop + VIEWPORT_TOP_OFFSET_PX));
+      if (block && typeof block.from === 'number') {
+        const clampedPos = Math.min(Math.max(0, block.from), doc.length);
+        return Math.max(0, doc.lineAt(clampedPos).number - 1);
+      }
+    }
+
+    if (view.viewport && typeof view.viewport.from === 'number') {
+      const clampedPos = Math.min(Math.max(0, view.viewport.from), doc.length);
+      return Math.max(0, doc.lineAt(clampedPos).number - 1);
+    }
+
+    return resolveCursorZeroBasedLine(view);
+  } catch {
+    return null;
+  }
+}
+
+function createCm6ScrollSpyExtensions(
+  context: ContentScriptContext,
+  EditorView: CodeMirror6ViewModule['EditorView'] | null,
+  ViewPlugin: CodeMirror6ViewModule['ViewPlugin'] | null,
+): unknown[] {
+  if (typeof context?.postMessage !== 'function') {
+    return [];
+  }
+
+  let throttleTimer: ReturnType<typeof setTimeout> | null = null;
+  let lastSentLine = -1;
+  let pendingLine: number | null = null;
+  let pendingSource: 'selection' | 'scroll' = 'selection';
+
+  const emitLine = (line: number, source: 'selection' | 'scroll'): void => {
+    if (line === lastSentLine) return;
+    lastSentLine = line;
+    try {
+      const result = context.postMessage({
+        type: 'editorActiveLine',
+        line,
+        source,
+      });
+      if (result && typeof result.catch === 'function') {
+        result.catch(() => {});
+      }
+    } catch {
+      // Never allow IPC failures to deregister CodeMirror extensions.
+    }
+  };
+
+  const scheduleEmit = (line: number | null, source: 'selection' | 'scroll'): void => {
+    if (line === null) return;
+    pendingLine = line;
+    pendingSource = source;
+
+    if (throttleTimer !== null) return;
+    throttleTimer = setTimeout(() => {
+      throttleTimer = null;
+      if (pendingLine !== null) {
+        const toSend = pendingLine;
+        const src = pendingSource;
+        pendingLine = null;
+        emitLine(toSend, src);
+      }
+    }, SCROLL_SPY_THROTTLE_MS);
+  };
+
+  const extensions: unknown[] = [];
+
+  if (ViewPlugin && typeof ViewPlugin.fromClass === 'function') {
+    extensions.push(
+      ViewPlugin.fromClass(
+        class {
+          constructor(view: any) {
+            scheduleEmit(resolveCursorZeroBasedLine(view), 'selection');
+          }
+
+          update(update: any): void {
+            try {
+              if (update.selectionSet) {
+                scheduleEmit(resolveCursorZeroBasedLine(update.view), 'selection');
+              } else if (update.viewportChanged) {
+                scheduleEmit(resolveViewportTopZeroBasedLine(update.view), 'scroll');
+              }
+            } catch {
+              // Keep extension registered even on unexpected editor state.
+            }
+          }
+
+          destroy(): void {
+            if (throttleTimer !== null) {
+              clearTimeout(throttleTimer);
+              throttleTimer = null;
+            }
+          }
+        },
+      ),
+    );
+  }
+
+  if (EditorView && typeof EditorView.domEventHandlers === 'function') {
+    extensions.push(
+      EditorView.domEventHandlers({
+        scroll(_event: Event, view: any) {
+          scheduleEmit(resolveViewportTopZeroBasedLine(view), 'scroll');
+          return false;
+        },
+      }),
+    );
+  }
+
+  return extensions;
+}
+
+export default (context: ContentScriptContext): MarkdownEditorContentScriptModule => {
   return {
     plugin: (editorControl: CodeMirrorControl) => {
       // 1. CodeMirror 6 path (Joplin Desktop 3.x & Joplin Mobile)
       if (editorControl?.editor && typeof editorControl.registerCommand === 'function') {
-        const { EditorView, EditorSelection } = loadCodeMirror6Modules();
+        const { EditorView, ViewPlugin, EditorSelection } = loadCodeMirror6Modules();
 
         editorControl.registerCommand(SCROLL_TO_LINE_COMMAND, (lineZeroBased: number) => {
           const view = editorControl.editor;
@@ -82,6 +229,18 @@ export default (_context: ContentScriptContext): MarkdownEditorContentScriptModu
 
           return true;
         });
+
+        // Register throttled active-heading scroll-spy extension
+        if (typeof editorControl.addExtension === 'function') {
+          const scrollSpyExtensions = createCm6ScrollSpyExtensions(context, EditorView, ViewPlugin);
+          if (scrollSpyExtensions.length > 0) {
+            try {
+              editorControl.addExtension(scrollSpyExtensions);
+            } catch {
+              // Keep scrollToLine command working even if addExtension fails.
+            }
+          }
+        }
 
         return;
       }

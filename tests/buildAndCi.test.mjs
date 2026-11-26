@@ -41,12 +41,22 @@ describe('P3 #9: Strict TypeScript, Mobile-Safe Minified Bundles & CI/CD Hardeni
       path.join(repoRoot, 'dist', 'contentScripts', 'codeMirrorScroller.js'),
       'utf8',
     );
+    const distViewerPlugin = fs.readFileSync(
+      path.join(repoRoot, 'dist', 'contentScripts', 'viewerScrollSpyPlugin.js'),
+      'utf8',
+    );
+    const distViewerRuntime = fs.readFileSync(
+      path.join(repoRoot, 'dist', 'contentScripts', 'viewerScrollSpyRuntime.js'),
+      'utf8',
+    );
     const distCss = fs.readFileSync(path.join(repoRoot, 'dist', 'webview', 'outline.css'), 'utf8');
 
     for (const [label, content] of [
       ['dist/index.js', distIndex],
       ['dist/webview/outline.js', distWebview],
       ['dist/contentScripts/codeMirrorScroller.js', distContentScript],
+      ['dist/contentScripts/viewerScrollSpyPlugin.js', distViewerPlugin],
+      ['dist/contentScripts/viewerScrollSpyRuntime.js', distViewerRuntime],
     ]) {
       assert.doesNotMatch(
         content,
@@ -116,14 +126,16 @@ describe('P3 #9: Strict TypeScript, Mobile-Safe Minified Bundles & CI/CD Hardeni
       assert.equal(outline.headings[0].slug, 'rocket-launch-plan');
       assert.equal(outline.headings[0].children[0].script, 'arabic');
 
-      // Verify minification actually shrank the bundles significantly
-      assert.ok(distIndex.length < 100_000, `Expected minified dist/index.js < 100KB, got ${distIndex.length}`);
-      assert.ok(distWebview.length < 20_000, `Expected minified dist/webview/outline.js < 20KB, got ${distWebview.length}`);
+      // Verify minification keeps all production bundles lean
+      assert.ok(distIndex.length < 115_000, `Expected minified dist/index.js < 115KB, got ${distIndex.length}`);
+      assert.ok(distWebview.length < 32_000, `Expected minified dist/webview/outline.js < 32KB, got ${distWebview.length}`);
       assert.ok(
-        distContentScript.length < 2_500,
-        `Expected minified dist/contentScripts/codeMirrorScroller.js < 2.5KB, got ${distContentScript.length}`,
+        distContentScript.length < 5_000,
+        `Expected minified dist/contentScripts/codeMirrorScroller.js < 5KB, got ${distContentScript.length}`,
       );
-      assert.ok(distCss.length < 13_500, `Expected minified dist/webview/outline.css < 13.5KB, got ${distCss.length}`);
+      assert.ok(distViewerPlugin.length < 1_500, `Expected minified viewerScrollSpyPlugin.js < 1.5KB, got ${distViewerPlugin.length}`);
+      assert.ok(distViewerRuntime.length < 3_000, `Expected minified viewerScrollSpyRuntime.js < 3KB, got ${distViewerRuntime.length}`);
+      assert.ok(distCss.length < 18_500, `Expected minified dist/webview/outline.css < 18.5KB, got ${distCss.length}`);
 
       // Verify .jpl archive contains only the clean production files
       const jplPath = path.join(repoRoot, 'publish', 'com.xyasharx.treeoutline.jpl');
@@ -134,6 +146,8 @@ describe('P3 #9: Strict TypeScript, Mobile-Safe Minified Bundles & CI/CD Hardeni
       assert.deepEqual(entries, [
         'contentScripts/',
         'contentScripts/codeMirrorScroller.js',
+        'contentScripts/viewerScrollSpyPlugin.js',
+        'contentScripts/viewerScrollSpyRuntime.js',
         'index.js',
         'manifest.json',
         'webview/',

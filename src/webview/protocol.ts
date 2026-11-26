@@ -26,6 +26,19 @@ export type FontPreset =
 export interface OutlinePreferences {
   textWrapMode: TextWrapMode;
   fontPreset: FontPreset;
+  customFontFamily: string;
+  /** Base font size override in px (0 = inherit Joplin theme font size; 10–24 when custom). */
+  fontSize: number;
+  /** Maximum heading level displayed (1–6). */
+  maxHeadingDepth: number;
+  /** Auto-collapse headings at or deeper than this level when opening a note (0 = off, 2–5). */
+  defaultCollapseLevel: number;
+  /** Prefix outline entries with hierarchical numbering (1., 1.1, 1.2). */
+  showHeadingNumbers: boolean;
+  /** Display subtle H1–H6 level pill badges beside each heading. */
+  showLevelBadges: boolean;
+  /** Automatically highlight and scroll-track the active heading as the user reads/writes. */
+  followActiveHeading: boolean;
 }
 
 export interface HeadingNode {
@@ -51,6 +64,8 @@ export interface OutlineUpdateMessage {
   noteId: string;
   noteChanged: boolean;
   selectionKind: NoteSelectionKind;
+  /** Number of currently selected notes (0, 1, or N > 1 for multi-note selection feedback). */
+  selectedCount: number;
   markupLanguage: number;
   headings: HeadingNode[];
   isRtl: boolean;
@@ -62,7 +77,23 @@ export interface PreferencesUpdateMessage {
   preferences: OutlinePreferences;
 }
 
-export type PluginToWebviewMessage = OutlineUpdateMessage | PreferencesUpdateMessage;
+export interface ActiveHeadingUpdateMessage {
+  type: 'activeHeadingUpdate';
+  noteId: string;
+  headingKey: string | null;
+}
+
+export interface ToastNotificationMessage {
+  type: 'toast';
+  message: string;
+  kind?: 'info' | 'success' | 'error';
+}
+
+export type PluginToWebviewMessage =
+  | OutlineUpdateMessage
+  | PreferencesUpdateMessage
+  | ActiveHeadingUpdateMessage
+  | ToastNotificationMessage;
 
 export interface WebviewReadyMessage {
   type: 'ready';
@@ -88,8 +119,23 @@ export interface WebviewUpdatePreferencesMessage {
   textWrapMode?: TextWrapMode;
 }
 
+export type CopyLinkFormat = 'markdown' | 'slug';
+
+export interface WebviewCopyHeadingLinkMessage {
+  type: 'copyHeadingLink';
+  format: CopyLinkFormat;
+  slug: string;
+  text: string;
+}
+
+export interface WebviewInsertTocMessage {
+  type: 'insertToc';
+}
+
 export type WebviewToPluginMessage =
   | WebviewReadyMessage
   | WebviewRequestSyncMessage
   | WebviewJumpToHeadingMessage
-  | WebviewUpdatePreferencesMessage;
+  | WebviewUpdatePreferencesMessage
+  | WebviewCopyHeadingLinkMessage
+  | WebviewInsertTocMessage;
