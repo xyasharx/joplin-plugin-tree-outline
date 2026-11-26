@@ -31,16 +31,6 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Build plugin bundle
-        run: npm run dist
-
-      - name: Verify build outputs
-        run: |
-          if [ ! -f publish/*.jpl ]; then
-            echo "Error: .jpl file not found in publish/ directory!"
-            exit 1
-          fi
-
       - name: Extract Tag / Version
         id: vars
         run: |
@@ -50,7 +40,27 @@ jobs:
             VERSION=$(node -p "require('./package.json').version")
             TAG="v$VERSION"
           fi
-          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Verify version & tag parity
+        run: npm run check:version -- --tag "${{ steps.vars.outputs.tag }}"
+
+      - name: TypeScript strict typecheck
+        run: npm run typecheck
+
+      - name: Build plugin bundle and run test suite
+        run: npm test
+
+      - name: Verify build outputs
+        run: |
+          if [ ! -f publish/*.jpl ]; then
+            echo "Error: .jpl file not found in publish/ directory!"
+            exit 1
+          fi
+          if [ ! -f publish/manifest.json ]; then
+            echo "Error: manifest.json not found in publish/ directory!"
+            exit 1
+          fi
 
       # 1. Create GitHub Release with the .jpl archive
       - name: Create GitHub Release
