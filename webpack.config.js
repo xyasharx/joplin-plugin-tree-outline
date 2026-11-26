@@ -57,7 +57,13 @@ module.exports = () => {
       minimize: false,
     },
     module: {
-      rules: [tsRule],
+      rules: [
+        tsRule,
+        {
+          test: /\.html$/,
+          type: 'asset/source',
+        },
+      ],
     },
     output: {
       filename: 'index.js',
@@ -72,7 +78,7 @@ module.exports = () => {
             from: '**/*',
             to: distDir,
             context: 'src',
-            globOptions: { ignore: ['**/*.ts', '**/*.tsx', 'manifest.json'] },
+            globOptions: { ignore: ['**/*.ts', '**/*.tsx', '**/*.html', 'manifest.json'] },
           },
           { from: 'src/manifest.json', to: distDir },
         ],

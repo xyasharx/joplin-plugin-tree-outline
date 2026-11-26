@@ -132,61 +132,6 @@ body[dir="rtl"], .outline-container[dir="rtl"] {
   color: var(--nav-accent);
 }
 
-.font-icon-label {
-  font-size: 13px;
-  font-weight: 700;
-  font-family: var(--font-latin);
-  letter-spacing: -0.5px;
-}
-
-/* Typography Preset Menu */
-.font-menu {
-  display: none;
-  position: absolute;
-  top: 38px;
-  inset-inline-end: 10px;
-  width: 210px;
-  background: var(--joplin-background-color, #fff);
-  border: 1px solid var(--joplin-divider-color, rgba(125, 125, 125, 0.25));
-  border-radius: 7px;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.15);
-  padding: 4px;
-  z-index: 30;
-  max-height: 280px;
-  overflow-y: auto;
-}
-
-.font-menu.is-visible {
-  display: block;
-}
-
-.font-menu-header {
-  font-size: 10.5px;
-  text-transform: uppercase;
-  font-weight: 700;
-  opacity: 0.5;
-  padding: 4px 8px;
-  letter-spacing: 0.5px;
-}
-
-.font-menu-item {
-  padding: 6px 8px;
-  font-size: 12px;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: background-color 0.12s ease;
-}
-
-.font-menu-item:hover {
-  background-color: var(--nav-item-background-hover);
-}
-
-.font-menu-item.is-selected {
-  background-color: var(--nav-item-background-active);
-  font-weight: 600;
-  color: var(--nav-accent);
-}
-
 /* Search Box */
 .search-input-container {
   display: none;
@@ -370,15 +315,17 @@ body[dir="rtl"], .outline-container[dir="rtl"] {
    ======================================================== */
 
 /* 1. Auto Mode: Applied when NO manual override is active */
-.outline-container:not([class*="override-"]) [dir="rtl"] .tree-item-inner,
-.outline-container:not([class*="override-"]) [dir="rtl"] input,
-.outline-container:not([class*="override-"]) [dir="rtl"] .outline-status,
-.outline-container:not([class*="override-"]) .tree-item-self[data-script="persian"] .tree-item-inner { 
-  font-family: var(--font-persian) !important; 
+.outline-container[dir="rtl"]:not([class*="override-"]) input,
+.outline-container[dir="rtl"]:not([class*="override-"]) .outline-status {
+  font-family: var(--font-persian) !important;
 }
 
-.outline-container:not([class*="override-"]) .tree-item-self[data-script="arabic"] .tree-item-inner { 
-  font-family: var(--font-arabic) !important; 
+.outline-container:not([class*="override-"]) .tree-item-self[data-script="persian"] .tree-item-inner {
+  font-family: var(--font-persian) !important;
+}
+
+.outline-container:not([class*="override-"]) .tree-item-self[data-script="arabic"] .tree-item-inner {
+  font-family: var(--font-arabic) !important;
 }
 
 .outline-container:not([class*="override-"]) .tree-item-self[data-script="hebrew"] .tree-item-inner { 

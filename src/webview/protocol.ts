@@ -7,6 +7,27 @@ export type HeadingScript =
   | 'devanagari'
   | 'latin';
 
+export type TextWrapMode = 'auto' | 'wrapped' | 'nowrap';
+
+export type FontPreset =
+  | 'auto'
+  | 'inter'
+  | 'roboto'
+  | 'vazirmatn'
+  | 'arabic'
+  | 'hebrew'
+  | 'cjk-sc'
+  | 'cjk-jp'
+  | 'devanagari'
+  | 'lora'
+  | 'mono'
+  | 'system';
+
+export interface OutlinePreferences {
+  textWrapMode: TextWrapMode;
+  fontPreset: FontPreset;
+}
+
 export interface HeadingNode {
   id: string;
   /** Stable per-note structural key (survives line shifts from body edits). */
@@ -36,7 +57,12 @@ export interface OutlineUpdateMessage {
   isMobile: boolean;
 }
 
-export type PluginToWebviewMessage = OutlineUpdateMessage;
+export interface PreferencesUpdateMessage {
+  type: 'preferencesUpdate';
+  preferences: OutlinePreferences;
+}
+
+export type PluginToWebviewMessage = OutlineUpdateMessage | PreferencesUpdateMessage;
 
 export interface WebviewReadyMessage {
   type: 'ready';
@@ -57,7 +83,13 @@ export interface WebviewJumpToHeadingMessage {
   markupLanguage?: number;
 }
 
+export interface WebviewUpdatePreferencesMessage {
+  type: 'updatePreferences';
+  textWrapMode?: TextWrapMode;
+}
+
 export type WebviewToPluginMessage =
   | WebviewReadyMessage
   | WebviewRequestSyncMessage
-  | WebviewJumpToHeadingMessage;
+  | WebviewJumpToHeadingMessage
+  | WebviewUpdatePreferencesMessage;

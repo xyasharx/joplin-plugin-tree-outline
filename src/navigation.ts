@@ -1,17 +1,20 @@
 import {
   ContentScriptType,
   MarkupLanguage,
-  SettingItemType,
-  SettingStorage,
   type JoplinApi,
 } from 'api/types';
+import {
+  AUTO_DISMISS_MOBILE_SETTING_KEY,
+  SETTINGS_SECTION_NAME,
+  registerPluginSettings,
+  shouldAutoDismissOnMobile,
+} from './settings';
 
 export const CODEMIRROR_SCROLLER_SCRIPT_ID = 'treeOutlineCodeMirrorScroller';
 export const CODEMIRROR_SCROLLER_SCRIPT_PATH = './contentScripts/codeMirrorScroller.js';
 export const SCROLL_TO_LINE_COMMAND = 'treeOutline.scrollToLine';
 
-export const SETTINGS_SECTION_NAME = 'treeOutline';
-export const AUTO_DISMISS_MOBILE_SETTING_KEY = 'autoDismissOnMobile';
+export { AUTO_DISMISS_MOBILE_SETTING_KEY, SETTINGS_SECTION_NAME };
 
 export interface JumpToHeadingOptions {
   joplinApi: Pick<JoplinApi, 'commands' | 'settings'>;
@@ -44,67 +47,43 @@ export async function registerCodeMirrorScroller(
 }
 
 /**
- * Registers user-facing TreeOutline navigation settings (currently mobile auto-dismiss).
+ * Registers user-facing TreeOutline settings (delegates to centralized settings module).
  */
 export async function registerNavigationSettings(
   joplinApi: Pick<JoplinApi, 'settings'>,
 ): Promise<void> {
+  await registerPluginSettings(joplinApi);
+}
+
+/**
+ * Reads desktop editor view state via modern joplin.settings.globalValues()
+ * (falling back to globalValue() for Joplin < 2.14).
+ */
+async function readDesktopEditorViewState(
+  settings: JoplinApi['settings'],
+): Promise<{ isMarkdown: boolean; visiblePanes: string[] }> {
+  let codeView: unknown;
+  let panes: unknown;
+
   try {
-    if (typeof joplinApi.settings.registerSection === 'function') {
-      await joplinApi.settings.registerSection(SETTINGS_SECTION_NAME, {
-        label: 'TreeOutline',
-        iconName: 'fas fa-stream',
-      });
+    if (typeof settings.globalValues === 'function') {
+      const results = await settings.globalValues(['editor.codeView', 'noteVisiblePanes']);
+      codeView = results?.[0];
+      panes = results?.[1];
+    } else {
+      [codeView, panes] = await Promise.all([
+        settings.globalValue('editor.codeView').catch(() => undefined),
+        settings.globalValue('noteVisiblePanes').catch(() => undefined),
+      ]);
     }
-
-    await joplinApi.settings.registerSettings({
-      [AUTO_DISMISS_MOBILE_SETTING_KEY]: {
-        value: true,
-        type: SettingItemType.Bool,
-        public: true,
-        section: SETTINGS_SECTION_NAME,
-        storage: SettingStorage.File,
-        label: 'Auto-dismiss panel after jumping (Mobile)',
-        description:
-          'Automatically close the TreeOutline panel after tapping a heading on Joplin Mobile.',
-      },
-    });
   } catch {
-    // Never block plugin startup if settings registration fails.
+    // Fall back to safe defaults below.
   }
-}
 
-async function shouldAutoDismissOnMobile(
-  settings: JoplinApi['settings'],
-): Promise<boolean> {
-  try {
-    const val = await settings.value(AUTO_DISMISS_MOBILE_SETTING_KEY);
-    return typeof val === 'boolean' ? val : true;
-  } catch {
-    return true;
-  }
-}
-
-async function isMarkdownEditorActive(
-  settings: JoplinApi['settings'],
-): Promise<boolean> {
-  try {
-    const codeView = await settings.globalValue('editor.codeView');
-    if (typeof codeView === 'boolean') return codeView;
-  } catch {
-    // Default to Markdown view when setting is unavailable.
-  }
-  return true;
-}
-
-async function getVisiblePanes(settings: JoplinApi['settings']): Promise<string[]> {
-  try {
-    const panes = await settings.globalValue('noteVisiblePanes');
-    if (Array.isArray(panes)) return panes;
-  } catch {
-    // Fall back to viewer pane.
-  }
-  return ['viewer'];
+  return {
+    isMarkdown: typeof codeView === 'boolean' ? codeView : true,
+    visiblePanes: Array.isArray(panes) ? panes : ['viewer'],
+  };
 }
 
 async function scrollCodeMirrorToLine(
@@ -112,7 +91,8 @@ async function scrollCodeMirrorToLine(
   line: number,
   allowCm5Fallback: boolean,
 ): Promise<boolean> {
-  const safeLine = typeof line === 'number' && Number.isFinite(line) ? Math.max(0, Math.floor(line)) : 0;
+  const safeLine =
+    typeof line === 'number' && Number.isFinite(line) ? Math.max(0, Math.floor(line)) : 0;
 
   try {
     const handled = await commands.execute('editor.execCommand', {
@@ -228,7 +208,7 @@ export async function jumpToHeading({
     return;
   }
 
-  const isMarkdown = await isMarkdownEditorActive(joplinApi.settings);
+  const { isMarkdown, visiblePanes } = await readDesktopEditorViewState(joplinApi.settings);
 
   // Desktop Rich Text Editor (WYSIWYG / TinyMCE): always navigate via TinyMCE-compatible commands,
   // regardless of noteVisiblePanes (which may still be ['editor'] from Markdown mode).
@@ -244,7 +224,6 @@ export async function jumpToHeading({
   }
 
   // Desktop Markdown mode
-  const visiblePanes = await getVisiblePanes(joplinApi.settings);
   const viewerVisible = visiblePanes.includes('viewer');
   const editorVisible = visiblePanes.includes('editor');
 

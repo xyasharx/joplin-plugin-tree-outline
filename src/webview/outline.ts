@@ -1,14 +1,24 @@
 import { findSearchMatchRanges, normalizeForSearch } from '../searchUtils';
 import type {
+  FontPreset,
   HeadingNode,
   NoteSelectionKind,
+  OutlineUpdateMessage,
   PluginToWebviewMessage,
+  PreferencesUpdateMessage,
+  TextWrapMode,
   WebviewToPluginMessage,
 } from './protocol';
 
+type WebviewIncomingEvent =
+  | PluginToWebviewMessage
+  | { message?: PluginToWebviewMessage }
+  | null
+  | undefined;
+
 interface JoplinWebviewApi {
   postMessage: (message: WebviewToPluginMessage) => Promise<any> | void;
-  onMessage?: (handler: (message: PluginToWebviewMessage) => void) => void;
+  onMessage?: (handler: (event: WebviewIncomingEvent) => void) => void;
 }
 
 declare global {
@@ -19,6 +29,23 @@ declare global {
 }
 
 const MAX_REMEMBERED_NOTES = 100;
+const AUTO_WRAP_MAX_WIDTH = 650;
+const CACHE_TEXT_WRAP_MODE_KEY = 'treeOutline_textWrapMode';
+const LEGACY_WRAP_KEY = 'treeOutline_isWrapped';
+
+const FONT_OVERRIDE_CLASSES: readonly string[] = [
+  'override-inter',
+  'override-roboto',
+  'override-vazirmatn',
+  'override-arabic',
+  'override-hebrew',
+  'override-cjk-sc',
+  'override-cjk-jp',
+  'override-devanagari',
+  'override-lora',
+  'override-mono',
+  'override-system',
+];
 
 const COLLAPSE_ALL_ICON_SVG =
   '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
@@ -45,6 +72,7 @@ const api: JoplinWebviewApi | null =
 let currentNoteId = '';
 let currentSelectionKind: NoteSelectionKind = 'none';
 let currentMarkupLanguage = 1;
+let currentTextWrapMode: TextWrapMode = 'auto';
 let allHeadings: HeadingNode[] = [];
 let activeHeadingKey: string | null = null;
 let isAllCollapsed = false;
@@ -69,8 +97,20 @@ function safeStorageSet(key: string, value: string): void {
   try {
     window.localStorage.setItem(key, value);
   } catch {
-    // Ignore storage errors in restricted WebViews.
+    // Ignore storage errors in restricted/sandboxed WebViews.
   }
+}
+
+/**
+ * Unwraps Joplin's webviewApi.onMessage event envelope ({ message: payload })
+ * while also accepting direct payload objects cleanly.
+ */
+function unwrapWebviewMessage(raw: WebviewIncomingEvent): PluginToWebviewMessage | null {
+  if (!raw || typeof raw !== 'object') return null;
+  if ('message' in raw && raw.message && typeof raw.message === 'object') {
+    return raw.message;
+  }
+  return raw as PluginToWebviewMessage;
 }
 
 function getTreeContainer(): HTMLElement | null {
@@ -103,6 +143,70 @@ function getWrapToggleBtn(): HTMLElement | null {
 
 function getOutlineContainer(): HTMLElement | null {
   return document.getElementById('outline-container');
+}
+
+function readCachedTextWrapMode(): TextWrapMode {
+  const cached = safeStorageGet(CACHE_TEXT_WRAP_MODE_KEY);
+  if (cached === 'auto' || cached === 'wrapped' || cached === 'nowrap') {
+    return cached;
+  }
+  const legacy = safeStorageGet(LEGACY_WRAP_KEY);
+  if (legacy === 'true') return 'wrapped';
+  if (legacy === 'false') return 'nowrap';
+  return 'auto';
+}
+
+function resolveVisualWrap(mode: TextWrapMode): boolean {
+  if (mode === 'wrapped') return true;
+  if (mode === 'nowrap') return false;
+  return window.innerWidth <= AUTO_WRAP_MAX_WIDTH;
+}
+
+function applyTextWrapMode(mode: TextWrapMode): void {
+  currentTextWrapMode = mode;
+  const container = getOutlineContainer();
+  const wrapToggleBtn = getWrapToggleBtn();
+  const isWrapped = resolveVisualWrap(mode);
+
+  container?.classList.toggle('is-wrapped', isWrapped);
+
+  if (wrapToggleBtn) {
+    wrapToggleBtn.classList.toggle('is-active', isWrapped);
+    wrapToggleBtn.setAttribute('aria-pressed', isWrapped ? 'true' : 'false');
+    const label = isWrapped ? 'Switch to single-line headings' : 'Wrap long headings';
+    wrapToggleBtn.setAttribute('title', label);
+    wrapToggleBtn.setAttribute('aria-label', label);
+  }
+}
+
+function applyFontPreset(preset: FontPreset): void {
+  const container = getOutlineContainer();
+  if (!container) return;
+
+  for (const cls of FONT_OVERRIDE_CLASSES) {
+    container.classList.remove(cls);
+  }
+
+  if (preset && preset !== 'auto') {
+    const targetClass = `override-${preset}`;
+    if (FONT_OVERRIDE_CLASSES.includes(targetClass)) {
+      container.classList.add(targetClass);
+    }
+  }
+}
+
+function applyPreferencesUpdate(msg: PreferencesUpdateMessage): void {
+  if (!msg.preferences || typeof msg.preferences !== 'object') return;
+  const { textWrapMode, fontPreset } = msg.preferences;
+
+  if (textWrapMode === 'auto' || textWrapMode === 'wrapped' || textWrapMode === 'nowrap') {
+    applyTextWrapMode(textWrapMode);
+    safeStorageSet(CACHE_TEXT_WRAP_MODE_KEY, textWrapMode);
+  }
+
+  if (typeof fontPreset === 'string') {
+    applyFontPreset(fontPreset);
+  }
 }
 
 function getCollapsedSet(noteId: string): Set<string> {
@@ -455,8 +559,7 @@ function handleTreeClick(event: Event): void {
   }
 }
 
-function applyOutlineUpdate(msg: PluginToWebviewMessage): void {
-  if (!msg || msg.type !== 'outlineUpdate') return;
+function applyOutlineUpdate(msg: OutlineUpdateMessage): void {
   if (typeof msg.version === 'number' && msg.version < lastAppliedVersion) {
     return;
   }
@@ -492,6 +595,20 @@ function applyOutlineUpdate(msg: PluginToWebviewMessage): void {
   renderTree(allHeadings, activeQuery, { preserveScroll: !noteChanged });
 }
 
+function handleIncomingMessage(rawEvent: WebviewIncomingEvent): void {
+  const msg = unwrapWebviewMessage(rawEvent);
+  if (!msg) return;
+
+  if (msg.type === 'preferencesUpdate') {
+    applyPreferencesUpdate(msg);
+    return;
+  }
+
+  if (msg.type === 'outlineUpdate') {
+    applyOutlineUpdate(msg);
+  }
+}
+
 function bindButtonActivation(el: HTMLElement | null, handler: () => void): void {
   if (!el) return;
   el.addEventListener('click', handler);
@@ -516,26 +633,28 @@ function initEventHandlers(): void {
   const collapseAllBtn = getCollapseAllBtn();
   const treeContainer = getTreeContainer();
 
-  // 1. Wrap preference (safe localStorage access)
-  if (container) {
-    const savedWrap = safeStorageGet('treeOutline_isWrapped');
-    const isWrapped = savedWrap !== null ? savedWrap === 'true' : window.innerWidth <= 650;
+  // 1. Text wrap preference: seed optimistically from guarded cache until
+  //    authoritative joplin.settings arrive via preferencesUpdate.
+  applyTextWrapMode(readCachedTextWrapMode());
 
-    container.classList.toggle('is-wrapped', isWrapped);
-    if (wrapToggleBtn) {
-      wrapToggleBtn.classList.toggle('is-active', isWrapped);
-      wrapToggleBtn.setAttribute('aria-pressed', isWrapped ? 'true' : 'false');
+  bindButtonActivation(wrapToggleBtn, () => {
+    const currentlyWrapped = Boolean(container?.classList.contains('is-wrapped'));
+    const nextMode: TextWrapMode = currentlyWrapped ? 'nowrap' : 'wrapped';
+    applyTextWrapMode(nextMode);
+    safeStorageSet(CACHE_TEXT_WRAP_MODE_KEY, nextMode);
+    if (api?.postMessage) {
+      void api.postMessage({
+        type: 'updatePreferences',
+        textWrapMode: nextMode,
+      });
     }
+  });
 
-    bindButtonActivation(wrapToggleBtn, () => {
-      const currentlyWrapped = container.classList.toggle('is-wrapped');
-      if (wrapToggleBtn) {
-        wrapToggleBtn.classList.toggle('is-active', currentlyWrapped);
-        wrapToggleBtn.setAttribute('aria-pressed', currentlyWrapped ? 'true' : 'false');
-      }
-      safeStorageSet('treeOutline_isWrapped', currentlyWrapped ? 'true' : 'false');
-    });
-  }
+  window.addEventListener('resize', () => {
+    if (currentTextWrapMode === 'auto') {
+      applyTextWrapMode('auto');
+    }
+  });
 
   // 2. Search toggle
   bindButtonActivation(searchToggleBtn, () => {
@@ -618,11 +737,9 @@ function initEventHandlers(): void {
     }
   });
 
-  // 8. Push listener from plugin host
+  // 8. Push listener from plugin host (registered BEFORE sending 'ready')
   if (api?.onMessage) {
-    api.onMessage((msg: PluginToWebviewMessage) => {
-      applyOutlineUpdate(msg);
-    });
+    api.onMessage(handleIncomingMessage);
   }
 
   // 9. Single initial ready handshake

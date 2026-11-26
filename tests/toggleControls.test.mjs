@@ -295,12 +295,14 @@ describe('TreeOutline desktop & mobile toggle controls (Issue #1)', () => {
     const btnIdx = host.callOrder.indexOf('toolbarButtons.create:toggleTreeOutlineToolbarButton:noteToolbar');
     assert.ok(cmdIdx !== -1 && menuIdx > cmdIdx && btnIdx > cmdIdx);
 
-    // 7. Visible by default on first run and initial push-based outlineUpdate dispatched
+    // 7. Visible by default on first run and initial push-based preferences + outlineUpdate dispatched
     const [panelHandle, panelState] = Array.from(host.panels.entries())[0];
     assert.equal(panelState.visible, true);
-    assert.equal(host.postedMessages.length, 1);
-    assert.equal(host.postedMessages[0].handle, panelHandle);
-    assert.equal(host.postedMessages[0].message.type, 'outlineUpdate');
+    const outlineUpdates = host.postedMessages.filter((m) => m.message.type === 'outlineUpdate');
+    const prefUpdates = host.postedMessages.filter((m) => m.message.type === 'preferencesUpdate');
+    assert.equal(prefUpdates.length, 1);
+    assert.equal(outlineUpdates.length, 1);
+    assert.equal(outlineUpdates[0].handle, panelHandle);
   });
 
   it('toggles visibility off and on, persists state, and syncs webview when shown', async () => {
@@ -308,21 +310,22 @@ describe('TreeOutline desktop & mobile toggle controls (Issue #1)', () => {
     await host.startPlugin();
 
     const [panelHandle] = Array.from(host.panels.keys());
+    const outlineUpdates = () =>
+      host.postedMessages.filter((m) => m.message.type === 'outlineUpdate');
     assert.equal(await host.joplin.views.panels.visible(panelHandle), true);
-    assert.equal(host.postedMessages.length, 1);
+    assert.equal(outlineUpdates().length, 1);
 
     // Toggle OFF
     await host.joplin.commands.execute('toggleTreeOutline');
     assert.equal(await host.joplin.views.panels.visible(panelHandle), false);
     assert.equal(host.settingValues.get('panelVisible'), false);
-    assert.equal(host.postedMessages.length, 1, 'Should not post sync message when hiding');
+    assert.equal(outlineUpdates().length, 1, 'Should not post sync message when hiding');
 
     // Toggle ON
     await host.joplin.commands.execute('toggleTreeOutline');
     assert.equal(await host.joplin.views.panels.visible(panelHandle), true);
     assert.equal(host.settingValues.get('panelVisible'), true);
-    assert.equal(host.postedMessages.length, 2, 'Should immediately push outlineUpdate when showing');
-    assert.equal(host.postedMessages[1].message.type, 'outlineUpdate');
+    assert.equal(outlineUpdates().length, 2, 'Should immediately push outlineUpdate when showing');
   });
 
   it('remembers hidden state across Joplin restarts on desktop', async () => {
@@ -333,6 +336,8 @@ describe('TreeOutline desktop & mobile toggle controls (Issue #1)', () => {
     await host.startPlugin();
 
     const [panelHandle] = Array.from(host.panels.keys());
+    const outlineUpdates = () =>
+      host.postedMessages.filter((m) => m.message.type === 'outlineUpdate');
     assert.equal(await host.joplin.views.panels.visible(panelHandle), false);
     assert.equal(host.postedMessages.length, 0);
 
@@ -340,7 +345,7 @@ describe('TreeOutline desktop & mobile toggle controls (Issue #1)', () => {
     await host.joplin.commands.execute('toggleTreeOutline');
     assert.equal(await host.joplin.views.panels.visible(panelHandle), true);
     assert.equal(host.settingValues.get('panelVisible'), true);
-    assert.equal(host.postedMessages.length, 1);
+    assert.equal(outlineUpdates().length, 1);
   });
 
   it('works on Joplin 2.8–2.12 desktop builds where versionInfo().platform is undefined', async () => {
