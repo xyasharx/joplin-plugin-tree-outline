@@ -1,12 +1,19 @@
+import {
+  computeHierarchicalNumbers,
+  filterHeadingsByMaxDepth,
+} from '../headingActions';
 import { findSearchMatchRanges, normalizeForSearch } from '../searchUtils';
 import type {
+  ActiveHeadingUpdateMessage,
   FontPreset,
   HeadingNode,
   NoteSelectionKind,
+  OutlinePreferences,
   OutlineUpdateMessage,
   PluginToWebviewMessage,
   PreferencesUpdateMessage,
   TextWrapMode,
+  ToastNotificationMessage,
   WebviewToPluginMessage,
 } from './protocol';
 
@@ -30,6 +37,7 @@ declare global {
 
 const MAX_REMEMBERED_NOTES = 100;
 const AUTO_WRAP_MAX_WIDTH = 650;
+const TOAST_DURATION_MS = 2200;
 const CACHE_TEXT_WRAP_MODE_KEY = 'treeOutline_textWrapMode';
 const LEGACY_WRAP_KEY = 'treeOutline_isWrapped';
 
@@ -66,24 +74,48 @@ const EXPAND_ALL_ICON_SVG =
 const CHEVRON_SVG =
   '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg>';
 
+const COPY_LINK_ICON_SVG =
+  '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+  '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>' +
+  '<path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>' +
+  '</svg>';
+
+const DEFAULT_PREFERENCES: OutlinePreferences = {
+  textWrapMode: 'auto',
+  fontPreset: 'auto',
+  customFontFamily: '',
+  fontSize: 0,
+  maxHeadingDepth: 6,
+  defaultCollapseLevel: 0,
+  showHeadingNumbers: false,
+  showLevelBadges: false,
+  followActiveHeading: true,
+};
+
 const api: JoplinWebviewApi | null =
   typeof webviewApi !== 'undefined' ? webviewApi : window.webviewApi ?? null;
 
 let currentNoteId = '';
 let currentSelectionKind: NoteSelectionKind = 'none';
+let currentSelectedCount = 0;
 let currentMarkupLanguage = 1;
-let currentTextWrapMode: TextWrapMode = 'auto';
+let currentPreferences: OutlinePreferences = { ...DEFAULT_PREFERENCES };
 let allHeadings: HeadingNode[] = [];
 let activeHeadingKey: string | null = null;
 let focusedHeadingKey: string | null = null;
 let isAllCollapsed = false;
 let lastAppliedVersion = -1;
 let initialized = false;
+let contextMenuTargetKey: string | null = null;
+let toastTimer: ReturnType<typeof setTimeout> | null = null;
 
 /** Maps noteId -> Set of collapsed stable HeadingNode.key values. */
 const collapsedByNote = new Map<string, Set<string>>();
 
-/** Maps currently rendered node key -> HeadingNode for delegated click & keyboard handling. */
+/** Tracks notes whose collapsed state has been seeded or manually modified. */
+const initializedNotes = new Set<string>();
+
+/** Maps currently rendered node key -> HeadingNode for delegated click/keyboard/contextmenu handling. */
 const renderedNodesByKey = new Map<string, HeadingNode>();
 
 function safeStorageGet(key: string): string | null {
@@ -142,8 +174,28 @@ function getWrapToggleBtn(): HTMLElement | null {
   return document.getElementById('wrap-toggle-btn');
 }
 
+function getInsertTocBtn(): HTMLElement | null {
+  return document.getElementById('insert-toc-btn');
+}
+
 function getOutlineContainer(): HTMLElement | null {
   return document.getElementById('outline-container');
+}
+
+function getContextMenu(): HTMLElement | null {
+  return document.getElementById('outline-context-menu');
+}
+
+function getToastElement(): HTMLElement | null {
+  return document.getElementById('outline-toast');
+}
+
+function prefersReducedMotion(): boolean {
+  try {
+    return Boolean(window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches);
+  } catch {
+    return false;
+  }
 }
 
 function readCachedTextWrapMode(): TextWrapMode {
@@ -164,7 +216,7 @@ function resolveVisualWrap(mode: TextWrapMode): boolean {
 }
 
 function applyTextWrapMode(mode: TextWrapMode): void {
-  currentTextWrapMode = mode;
+  currentPreferences = { ...currentPreferences, textWrapMode: mode };
   const container = getOutlineContainer();
   const wrapToggleBtn = getWrapToggleBtn();
   const isWrapped = resolveVisualWrap(mode);
@@ -196,18 +248,46 @@ function applyFontPreset(preset: FontPreset): void {
   }
 }
 
-function applyPreferencesUpdate(msg: PreferencesUpdateMessage): void {
-  if (!msg.preferences || typeof msg.preferences !== 'object') return;
-  const { textWrapMode, fontPreset } = msg.preferences;
+function applyCustomTypography(customFontFamily: string, fontSize: number): void {
+  const container = getOutlineContainer();
+  if (!container) return;
 
-  if (textWrapMode === 'auto' || textWrapMode === 'wrapped' || textWrapMode === 'nowrap') {
-    applyTextWrapMode(textWrapMode);
-    safeStorageSet(CACHE_TEXT_WRAP_MODE_KEY, textWrapMode);
+  const cleanFont = typeof customFontFamily === 'string' ? customFontFamily.trim() : '';
+  if (cleanFont) {
+    container.classList.add('has-custom-font');
+    container.style?.setProperty?.('--nav-custom-font', cleanFont);
+  } else {
+    container.classList.remove('has-custom-font');
+    container.style?.removeProperty?.('--nav-custom-font');
   }
 
-  if (typeof fontPreset === 'string') {
-    applyFontPreset(fontPreset);
+  const validSize = typeof fontSize === 'number' && fontSize >= 10 && fontSize <= 24 ? fontSize : 0;
+  if (validSize > 0) {
+    container.style?.setProperty?.('--nav-font-size', `${validSize}px`);
+  } else {
+    container.style?.removeProperty?.('--nav-font-size');
   }
+}
+
+function showToast(message: string, kind: 'info' | 'success' | 'error' = 'info'): void {
+  const toast = getToastElement();
+  if (!toast || !message) return;
+
+  if (toastTimer !== null) {
+    clearTimeout(toastTimer);
+    toastTimer = null;
+  }
+
+  toast.textContent = message;
+  toast.setAttribute('data-kind', kind);
+  toast.hidden = false;
+  toast.removeAttribute('hidden');
+
+  toastTimer = setTimeout(() => {
+    toastTimer = null;
+    toast.hidden = true;
+    toast.setAttribute('hidden', '');
+  }, TOAST_DURATION_MS);
 }
 
 function getCollapsedSet(noteId: string): Set<string> {
@@ -218,12 +298,105 @@ function getCollapsedSet(noteId: string): Set<string> {
       const oldestKey = collapsedByNote.keys().next().value;
       if (oldestKey !== undefined) {
         collapsedByNote.delete(oldestKey);
+        initializedNotes.delete(oldestKey);
       }
     }
     set = new Set<string>();
     collapsedByNote.set(noteId, set);
   }
   return set;
+}
+
+function applyDefaultCollapseLevelToSet(
+  headings: HeadingNode[],
+  collapsedSet: Set<string>,
+  collapseLevel: number,
+): void {
+  collapsedSet.clear();
+  if (collapseLevel < 2 || collapseLevel > 5) return;
+
+  const walk = (nodes: HeadingNode[]): void => {
+    for (const node of nodes) {
+      if (node.children && node.children.length > 0) {
+        if (node.level >= collapseLevel) {
+          collapsedSet.add(node.key);
+        }
+        walk(node.children);
+      }
+    }
+  };
+  walk(headings);
+}
+
+function getDepthFilteredHeadings(): HeadingNode[] {
+  return filterHeadingsByMaxDepth(allHeadings, currentPreferences.maxHeadingDepth);
+}
+
+function applyPreferencesUpdate(msg: PreferencesUpdateMessage): void {
+  if (!msg.preferences || typeof msg.preferences !== 'object') return;
+  const incoming = msg.preferences;
+  const prev = currentPreferences;
+
+  const next: OutlinePreferences = {
+    textWrapMode:
+      incoming.textWrapMode === 'auto' ||
+      incoming.textWrapMode === 'wrapped' ||
+      incoming.textWrapMode === 'nowrap'
+        ? incoming.textWrapMode
+        : prev.textWrapMode,
+    fontPreset: typeof incoming.fontPreset === 'string' ? incoming.fontPreset : prev.fontPreset,
+    customFontFamily:
+      typeof incoming.customFontFamily === 'string'
+        ? incoming.customFontFamily
+        : prev.customFontFamily,
+    fontSize: typeof incoming.fontSize === 'number' ? incoming.fontSize : prev.fontSize,
+    maxHeadingDepth:
+      typeof incoming.maxHeadingDepth === 'number'
+        ? Math.min(6, Math.max(1, Math.round(incoming.maxHeadingDepth)))
+        : prev.maxHeadingDepth,
+    defaultCollapseLevel:
+      typeof incoming.defaultCollapseLevel === 'number'
+        ? incoming.defaultCollapseLevel
+        : prev.defaultCollapseLevel,
+    showHeadingNumbers:
+      typeof incoming.showHeadingNumbers === 'boolean'
+        ? incoming.showHeadingNumbers
+        : prev.showHeadingNumbers,
+    showLevelBadges:
+      typeof incoming.showLevelBadges === 'boolean'
+        ? incoming.showLevelBadges
+        : prev.showLevelBadges,
+    followActiveHeading:
+      typeof incoming.followActiveHeading === 'boolean'
+        ? incoming.followActiveHeading
+        : prev.followActiveHeading,
+  };
+
+  currentPreferences = next;
+
+  applyTextWrapMode(next.textWrapMode);
+  safeStorageSet(CACHE_TEXT_WRAP_MODE_KEY, next.textWrapMode);
+  applyFontPreset(next.fontPreset);
+  applyCustomTypography(next.customFontFamily, next.fontSize);
+
+  const collapseLevelChanged = next.defaultCollapseLevel !== prev.defaultCollapseLevel;
+  if (collapseLevelChanged && currentNoteId) {
+    const collapsedSet = getCollapsedSet(currentNoteId);
+    applyDefaultCollapseLevelToSet(getDepthFilteredHeadings(), collapsedSet, next.defaultCollapseLevel);
+    initializedNotes.add(currentNoteId);
+  }
+
+  const needsRerender =
+    collapseLevelChanged ||
+    next.maxHeadingDepth !== prev.maxHeadingDepth ||
+    next.showHeadingNumbers !== prev.showHeadingNumbers ||
+    next.showLevelBadges !== prev.showLevelBadges;
+
+  if (needsRerender && currentSelectionKind !== 'none') {
+    const searchInput = getSearchInput();
+    const activeQuery = searchInput ? searchInput.value.trim() : '';
+    renderTree(allHeadings, activeQuery, { preserveScroll: true });
+  }
 }
 
 function collectCollapsibleKeys(nodes: HeadingNode[], out: string[] = []): string[] {
@@ -275,7 +448,8 @@ function updateSearchClearVisibility(query: string): void {
 
 function syncCollapseAllButtonState(): void {
   const btn = getCollapseAllBtn();
-  const collapsibleKeys = collectCollapsibleKeys(allHeadings);
+  const visibleHeadings = getDepthFilteredHeadings();
+  const collapsibleKeys = collectCollapsibleKeys(visibleHeadings);
   const collapsedSet = getCollapsedSet(currentNoteId);
 
   isAllCollapsed =
@@ -478,6 +652,27 @@ function getParentTreeItem(treeItem: HTMLElement): HTMLElement | null {
   return owner && owner.getAttribute?.('role') === 'treeitem' ? owner : null;
 }
 
+function syncActiveAncestorIndicators(): void {
+  const allItems = getAllTreeItems();
+  for (const item of allItems) {
+    item.classList.remove('has-active-child');
+  }
+  if (!activeHeadingKey) return;
+
+  const activeItem = allItems.find(
+    (el) => el.getAttribute('data-node-key') === activeHeadingKey,
+  );
+  if (!activeItem) return;
+
+  let ancestor = getParentTreeItem(activeItem);
+  while (ancestor) {
+    if (ancestor.classList.contains('is-collapsed')) {
+      ancestor.classList.add('has-active-child');
+    }
+    ancestor = getParentTreeItem(ancestor);
+  }
+}
+
 function setBranchCollapsed(treeItem: HTMLElement, collapsed: boolean): void {
   const nodeKey = treeItem.getAttribute('data-node-key');
   if (!nodeKey || !getDirectChildrenGroup(treeItem)) return;
@@ -486,12 +681,14 @@ function setBranchCollapsed(treeItem: HTMLElement, collapsed: boolean): void {
   treeItem.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
 
   const collapsedSet = getCollapsedSet(currentNoteId);
+  initializedNotes.add(currentNoteId);
   if (collapsed) {
     collapsedSet.add(nodeKey);
   } else {
     collapsedSet.delete(nodeKey);
   }
 
+  syncActiveAncestorIndicators();
   syncCollapseAllButtonState();
 
   // If collapsing hid the previously roved descendant, move roving tabindex onto this item
@@ -504,24 +701,52 @@ function setBranchCollapsed(treeItem: HTMLElement, collapsed: boolean): void {
   }
 }
 
+function applyActiveHeadingHighlight(
+  headingKey: string | null,
+  { scrollIntoView = false }: { scrollIntoView?: boolean } = {},
+): void {
+  activeHeadingKey = headingKey;
+
+  const allItems = getAllTreeItems();
+  let matchedItem: HTMLElement | null = null;
+
+  for (const item of allItems) {
+    const isMatch = headingKey !== null && item.getAttribute('data-node-key') === headingKey;
+    const row = item.querySelector('.tree-item-self') as HTMLElement | null;
+    row?.classList.toggle('is-active', isMatch);
+    if (isMatch) {
+      item.setAttribute('aria-current', 'location');
+      matchedItem = item;
+    } else {
+      item.removeAttribute('aria-current');
+    }
+  }
+
+  syncActiveAncestorIndicators();
+
+  if (scrollIntoView && matchedItem) {
+    const visibleItems = getVisibleTreeItems();
+    const isVisible = visibleItems.includes(matchedItem);
+    const scrollTarget = isVisible
+      ? matchedItem
+      : allItems.find((el) => el.classList.contains('has-active-child')) ?? null;
+
+    if (scrollTarget && typeof scrollTarget.scrollIntoView === 'function') {
+      scrollTarget.scrollIntoView({
+        block: 'nearest',
+        behavior: prefersReducedMotion() ? 'auto' : 'smooth',
+      });
+    }
+  }
+}
+
 function activateHeadingItem(treeItem: HTMLElement): void {
   const nodeKey = treeItem.getAttribute('data-node-key');
   if (!nodeKey) return;
   const node = renderedNodesByKey.get(nodeKey);
   if (!node) return;
 
-  const prevActiveRows = document.querySelectorAll('.tree-item-self.is-active');
-  for (const activeEl of prevActiveRows) {
-    activeEl.classList.remove('is-active');
-  }
-  for (const item of getAllTreeItems()) {
-    item.removeAttribute('aria-current');
-  }
-
-  const row = treeItem.querySelector('.tree-item-self') as HTMLElement | null;
-  row?.classList.add('is-active');
-  treeItem.setAttribute('aria-current', 'location');
-  activeHeadingKey = node.key;
+  applyActiveHeadingHighlight(node.key, { scrollIntoView: false });
   setRovingFocus(treeItem, { moveDomFocus: false });
 
   if (api?.postMessage) {
@@ -537,10 +762,64 @@ function activateHeadingItem(treeItem: HTMLElement): void {
   }
 }
 
+function requestCopyHeadingLink(nodeKey: string, format: 'markdown' | 'slug'): void {
+  const node = renderedNodesByKey.get(nodeKey);
+  if (!node || !api?.postMessage) return;
+  void api.postMessage({
+    type: 'copyHeadingLink',
+    format,
+    slug: node.slug,
+    text: node.text,
+  });
+}
+
+function requestInsertToc(): void {
+  if (!api?.postMessage) return;
+  void api.postMessage({ type: 'insertToc' });
+}
+
+function closeContextMenu({ restoreFocus = false } = {}): void {
+  const menu = getContextMenu();
+  if (!menu) return;
+  const targetKey = contextMenuTargetKey;
+  contextMenuTargetKey = null;
+  menu.hidden = true;
+  menu.setAttribute('hidden', '');
+
+  if (restoreFocus && targetKey) {
+    const item = getAllTreeItems().find((el) => el.getAttribute('data-node-key') === targetKey);
+    item?.focus();
+  }
+}
+
+function openContextMenu(nodeKey: string, clientX: number, clientY: number): void {
+  const menu = getContextMenu();
+  if (!menu || !renderedNodesByKey.has(nodeKey)) return;
+
+  contextMenuTargetKey = nodeKey;
+  menu.hidden = false;
+  menu.removeAttribute('hidden');
+
+  const viewportW = typeof window.innerWidth === 'number' && window.innerWidth > 0 ? window.innerWidth : 300;
+  const viewportH = typeof window.innerHeight === 'number' && window.innerHeight > 0 ? window.innerHeight : 500;
+  const menuW = (menu as any).offsetWidth || 200;
+  const menuH = (menu as any).offsetHeight || 120;
+
+  const left = Math.max(8, Math.min(clientX, viewportW - menuW - 8));
+  const top = Math.max(8, Math.min(clientY, viewportH - menuH - 8));
+
+  menu.style.left = `${left}px`;
+  menu.style.top = `${top}px`;
+
+  const firstItem = menu.querySelector('.context-menu-item') as HTMLElement | null;
+  firstItem?.focus();
+}
+
 function createNodeElement(
   node: HeadingNode,
   searchQuery: string,
   collapsedSet: Set<string>,
+  numberMap: Map<string, string> | null,
   depth: number,
   posInSet: number,
   setSize: number,
@@ -579,14 +858,40 @@ function createNodeElement(
   icon.setAttribute('aria-hidden', 'true');
   icon.setAttribute('data-node-key', node.key);
   icon.innerHTML = CHEVRON_SVG;
+  self.appendChild(icon);
+
+  if (currentPreferences.showLevelBadges) {
+    const badge = document.createElement('span');
+    badge.className = 'heading-level-badge';
+    badge.setAttribute('aria-hidden', 'true');
+    badge.textContent = `H${node.level}`;
+    self.appendChild(badge);
+  }
+
+  if (numberMap && numberMap.has(node.key)) {
+    const numEl = document.createElement('span');
+    numEl.className = 'heading-number';
+    numEl.setAttribute('aria-hidden', 'true');
+    numEl.textContent = numberMap.get(node.key) ?? '';
+    self.appendChild(numEl);
+  }
 
   const inner = document.createElement('bdi');
   inner.className = 'tree-item-inner';
   inner.title = `${node.text} (H${node.level})`;
   appendHighlightedText(inner, node.text, searchQuery);
-
-  self.appendChild(icon);
   self.appendChild(inner);
+
+  const copyBtn = document.createElement('button');
+  copyBtn.type = 'button';
+  copyBtn.className = 'tree-item-copy-btn';
+  copyBtn.setAttribute('tabindex', '-1');
+  copyBtn.setAttribute('data-node-key', node.key);
+  copyBtn.setAttribute('aria-label', `Copy link to ${node.text}`);
+  copyBtn.setAttribute('title', 'Copy Joplin Markdown link (right-click for more)');
+  copyBtn.innerHTML = COPY_LINK_ICON_SVG;
+  self.appendChild(copyBtn);
+
   item.appendChild(self);
 
   if (hasChildren) {
@@ -596,7 +901,15 @@ function createNodeElement(
     const childCount = node.children.length;
     for (let i = 0; i < childCount; i++) {
       childrenContainer.appendChild(
-        createNodeElement(node.children[i], searchQuery, collapsedSet, depth + 1, i + 1, childCount),
+        createNodeElement(
+          node.children[i],
+          searchQuery,
+          collapsedSet,
+          numberMap,
+          depth + 1,
+          i + 1,
+          childCount,
+        ),
       );
     }
     item.appendChild(childrenContainer);
@@ -605,12 +918,29 @@ function createNodeElement(
   return item;
 }
 
-function renderStatusMessage(treeContainer: HTMLElement, text: string): void {
+function renderStatusMessage(
+  treeContainer: HTMLElement,
+  title: string,
+  subtitle?: string,
+): void {
   const status = document.createElement('div');
   status.className = 'outline-status';
   status.setAttribute('role', 'status');
   status.setAttribute('aria-live', 'polite');
-  status.textContent = text;
+
+  if (subtitle) {
+    const titleEl = document.createElement('div');
+    titleEl.className = 'outline-status-title';
+    titleEl.textContent = title;
+    const subEl = document.createElement('div');
+    subEl.className = 'outline-status-sub';
+    subEl.textContent = subtitle;
+    status.appendChild(titleEl);
+    status.appendChild(subEl);
+  } else {
+    status.textContent = title;
+  }
+
   if (typeof treeContainer.replaceChildren === 'function') {
     treeContainer.replaceChildren(status);
   } else {
@@ -643,13 +973,20 @@ function renderTree(
   const searchInput = getSearchInput();
   if (!treeContainer) return;
 
+  closeContextMenu();
   const prevScrollTop = preserveScroll ? treeContainer.scrollTop : 0;
   renderedNodesByKey.clear();
 
-  const totalCount = countTotalHeadings(headings || []);
+  const depthFiltered = filterHeadingsByMaxDepth(
+    headings || [],
+    currentPreferences.maxHeadingDepth,
+  );
+  const visibleTotalCount = countTotalHeadings(depthFiltered);
+  const rawTotalCount = countTotalHeadings(headings || []);
+
   if (searchInput && !query) {
     searchInput.placeholder =
-      totalCount > 0 ? `Filter ${totalCount} headings...` : 'Filter headings...';
+      visibleTotalCount > 0 ? `Filter ${visibleTotalCount} headings...` : 'Filter headings...';
   }
 
   if (currentSelectionKind === 'none') {
@@ -659,7 +996,15 @@ function renderTree(
   }
 
   if (currentSelectionKind === 'multiple') {
-    renderStatusMessage(treeContainer, 'Multiple notes selected');
+    const title =
+      currentSelectedCount > 1
+        ? `${currentSelectedCount} notes selected`
+        : 'Multiple notes selected';
+    renderStatusMessage(
+      treeContainer,
+      title,
+      'Select a single note to view its outline',
+    );
     syncCollapseAllButtonState();
     return;
   }
@@ -670,8 +1015,20 @@ function renderTree(
     return;
   }
 
+  if (depthFiltered.length === 0) {
+    renderStatusMessage(
+      treeContainer,
+      `No headings within depth H1–H${currentPreferences.maxHeadingDepth}`,
+      `${rawTotalCount} deeper heading${rawTotalCount === 1 ? '' : 's'} hidden by Maximum heading depth setting`,
+    );
+    syncCollapseAllButtonState();
+    return;
+  }
+
   const normalizedQuery = normalizeForSearch(query);
-  const nodesToRender = normalizedQuery ? filterNodes(headings, normalizedQuery) : headings;
+  const nodesToRender = normalizedQuery
+    ? filterNodes(depthFiltered, normalizedQuery)
+    : depthFiltered;
 
   if (nodesToRender.length === 0) {
     renderStatusMessage(treeContainer, 'No matching headings found');
@@ -679,11 +1036,23 @@ function renderTree(
   }
 
   const collapsedSet = getCollapsedSet(currentNoteId);
+  const numberMap = currentPreferences.showHeadingNumbers
+    ? computeHierarchicalNumbers(depthFiltered)
+    : null;
+
   const fragment = document.createDocumentFragment();
   const rootCount = nodesToRender.length;
   for (let i = 0; i < rootCount; i++) {
     fragment.appendChild(
-      createNodeElement(nodesToRender[i], query, collapsedSet, 1, i + 1, rootCount),
+      createNodeElement(
+        nodesToRender[i],
+        query,
+        collapsedSet,
+        numberMap,
+        1,
+        i + 1,
+        rootCount,
+      ),
     );
   }
 
@@ -700,15 +1069,28 @@ function renderTree(
     treeContainer.scrollTop = 0;
   }
 
+  syncActiveAncestorIndicators();
   syncRovingTabIndex();
   syncCollapseAllButtonState();
 }
 
 function handleTreeClick(event: Event): void {
+  closeContextMenu();
   const target = event.target as HTMLElement | null;
   if (!target) return;
 
-  // 1. Collapse / expand chevron click
+  // 1. Quick-copy link button click
+  const copyBtn = target.closest('.tree-item-copy-btn') as HTMLElement | null;
+  if (copyBtn) {
+    event.stopPropagation();
+    const key = copyBtn.getAttribute('data-node-key');
+    if (key) {
+      requestCopyHeadingLink(key, 'markdown');
+    }
+    return;
+  }
+
+  // 2. Collapse / expand chevron click
   const collapseIcon = target.closest('.collapse-icon') as HTMLElement | null;
   if (collapseIcon && !collapseIcon.classList.contains('is-hidden')) {
     event.stopPropagation();
@@ -720,7 +1102,7 @@ function handleTreeClick(event: Event): void {
     return;
   }
 
-  // 2. Heading row click -> jump to heading
+  // 3. Heading row click -> jump to heading
   const row = target.closest('.tree-item-self') as HTMLElement | null;
   if (!row) return;
 
@@ -728,6 +1110,19 @@ function handleTreeClick(event: Event): void {
   if (!treeItem) return;
 
   activateHeadingItem(treeItem);
+}
+
+function handleTreeContextMenu(event: MouseEvent): void {
+  const target = event.target as HTMLElement | null;
+  const row = target?.closest('.tree-item-self') as HTMLElement | null;
+  if (!row) return;
+
+  const nodeKey = row.getAttribute('data-node-key');
+  if (!nodeKey || !renderedNodesByKey.has(nodeKey)) return;
+
+  event.preventDefault();
+  event.stopPropagation();
+  openContextMenu(nodeKey, event.clientX ?? 24, event.clientY ?? 48);
 }
 
 /**
@@ -738,11 +1133,22 @@ function handleTreeClick(event: Event): void {
  * - Home / End: first / last visible treeitem
  * - Enter / Space: activate focused heading (jump + set aria-current="location")
  * - *: expand all collapsed siblings at the same level
+ * - ContextMenu / Shift+F10: open accessible heading actions menu
  */
 function handleTreeKeyDown(event: KeyboardEvent): void {
   const target = event.target as HTMLElement | null;
   const treeItem = target?.closest('.tree-item') as HTMLElement | null;
   if (!treeItem) return;
+
+  if (event.key === 'ContextMenu' || (event.key === 'F10' && event.shiftKey)) {
+    event.preventDefault();
+    const key = treeItem.getAttribute('data-node-key');
+    if (key) {
+      const rect = (treeItem as any).getBoundingClientRect?.();
+      openContextMenu(key, rect ? rect.left + 20 : 24, rect ? rect.bottom : 48);
+    }
+    return;
+  }
 
   const visible = getVisibleTreeItems();
   const currentIndex = visible.indexOf(treeItem);
@@ -825,6 +1231,61 @@ function handleTreeKeyDown(event: KeyboardEvent): void {
   }
 }
 
+function handleContextMenuClick(event: Event): void {
+  const target = event.target as HTMLElement | null;
+  const item = target?.closest('.context-menu-item') as HTMLElement | null;
+  if (!item) return;
+
+  const action = item.getAttribute('data-action');
+  const nodeKey = contextMenuTargetKey;
+  closeContextMenu();
+
+  if (action === 'copy-markdown' && nodeKey) {
+    requestCopyHeadingLink(nodeKey, 'markdown');
+  } else if (action === 'copy-slug' && nodeKey) {
+    requestCopyHeadingLink(nodeKey, 'slug');
+  } else if (action === 'insert-toc') {
+    requestInsertToc();
+  }
+}
+
+function handleContextMenuKeyDown(event: KeyboardEvent): void {
+  const menu = getContextMenu();
+  if (!menu || menu.hidden) return;
+
+  const items = Array.from(menu.querySelectorAll('.context-menu-item')) as HTMLElement[];
+  if (items.length === 0) return;
+
+  const currentIdx = items.indexOf(document.activeElement as HTMLElement);
+
+  switch (event.key) {
+    case 'Escape':
+      event.preventDefault();
+      closeContextMenu({ restoreFocus: true });
+      break;
+    case 'ArrowDown':
+      event.preventDefault();
+      items[(currentIdx + 1) % items.length]?.focus();
+      break;
+    case 'ArrowUp':
+      event.preventDefault();
+      items[(currentIdx - 1 + items.length) % items.length]?.focus();
+      break;
+    case 'Tab':
+      closeContextMenu();
+      break;
+  }
+}
+
+function applyActiveHeadingUpdate(msg: ActiveHeadingUpdateMessage): void {
+  if (!currentPreferences.followActiveHeading) return;
+  if (!msg.noteId || msg.noteId !== currentNoteId) return;
+  if (!msg.headingKey || !renderedNodesByKey.has(msg.headingKey)) return;
+  if (msg.headingKey === activeHeadingKey) return;
+
+  applyActiveHeadingHighlight(msg.headingKey, { scrollIntoView: true });
+}
+
 function applyOutlineUpdate(msg: OutlineUpdateMessage): void {
   if (typeof msg.version === 'number' && msg.version < lastAppliedVersion) {
     return;
@@ -834,6 +1295,12 @@ function applyOutlineUpdate(msg: OutlineUpdateMessage): void {
   const noteChanged = Boolean(msg.noteChanged) || msg.noteId !== currentNoteId;
   currentNoteId = msg.noteId || '';
   currentSelectionKind = msg.selectionKind || (currentNoteId ? 'single' : 'none');
+  currentSelectedCount =
+    typeof msg.selectedCount === 'number'
+      ? msg.selectedCount
+      : currentSelectionKind === 'single'
+        ? 1
+        : 0;
   currentMarkupLanguage = typeof msg.markupLanguage === 'number' ? msg.markupLanguage : 1;
   allHeadings = Array.isArray(msg.headings) ? msg.headings : [];
 
@@ -842,6 +1309,15 @@ function applyOutlineUpdate(msg: OutlineUpdateMessage): void {
   if (noteChanged) {
     activeHeadingKey = null;
     focusedHeadingKey = null;
+    if (currentNoteId && !initializedNotes.has(currentNoteId)) {
+      const collapsedSet = getCollapsedSet(currentNoteId);
+      applyDefaultCollapseLevelToSet(
+        getDepthFilteredHeadings(),
+        collapsedSet,
+        currentPreferences.defaultCollapseLevel,
+      );
+      initializedNotes.add(currentNoteId);
+    }
   } else {
     // Prune stale collapsed/active/focused keys if headings were deleted in this note
     if (activeHeadingKey !== null && !validKeys.has(activeHeadingKey)) {
@@ -866,6 +1342,12 @@ function applyOutlineUpdate(msg: OutlineUpdateMessage): void {
   renderTree(allHeadings, activeQuery, { preserveScroll: !noteChanged });
 }
 
+function handleToastMessage(msg: ToastNotificationMessage): void {
+  if (typeof msg.message === 'string' && msg.message.length > 0) {
+    showToast(msg.message, msg.kind ?? 'info');
+  }
+}
+
 function handleIncomingMessage(rawEvent: WebviewIncomingEvent): void {
   const msg = unwrapWebviewMessage(rawEvent);
   if (!msg) return;
@@ -877,6 +1359,16 @@ function handleIncomingMessage(rawEvent: WebviewIncomingEvent): void {
 
   if (msg.type === 'outlineUpdate') {
     applyOutlineUpdate(msg);
+    return;
+  }
+
+  if (msg.type === 'activeHeadingUpdate') {
+    applyActiveHeadingUpdate(msg);
+    return;
+  }
+
+  if (msg.type === 'toast') {
+    handleToastMessage(msg);
   }
 }
 
@@ -891,7 +1383,9 @@ function initEventHandlers(): void {
   const searchInput = getSearchInput();
   const searchClearBtn = getSearchClearBtn();
   const collapseAllBtn = getCollapseAllBtn();
+  const insertTocBtn = getInsertTocBtn();
   const treeContainer = getTreeContainer();
+  const contextMenu = getContextMenu();
 
   // 1. Text wrap preference: seed optimistically from guarded cache until
   //    authoritative joplin.settings arrive via preferencesUpdate.
@@ -911,7 +1405,8 @@ function initEventHandlers(): void {
   });
 
   window.addEventListener('resize', () => {
-    if (currentTextWrapMode === 'auto') {
+    closeContextMenu();
+    if (currentPreferences.textWrapMode === 'auto') {
       applyTextWrapMode('auto');
     }
   });
@@ -955,11 +1450,12 @@ function initEventHandlers(): void {
 
   // 5. Collapse / Expand all
   collapseAllBtn?.addEventListener('click', () => {
-    const collapsibleKeys = collectCollapsibleKeys(allHeadings);
+    const collapsibleKeys = collectCollapsibleKeys(getDepthFilteredHeadings());
     if (collapsibleKeys.length === 0) return;
 
     const nextCollapsed = !isAllCollapsed;
     const collapsedSet = getCollapsedSet(currentNoteId);
+    initializedNotes.add(currentNoteId);
 
     if (nextCollapsed) {
       for (const key of collapsibleKeys) {
@@ -976,15 +1472,35 @@ function initEventHandlers(): void {
       }
     }
 
+    syncActiveAncestorIndicators();
     syncRovingTabIndex();
     syncCollapseAllButtonState();
   });
 
-  // 6. Delegated click & W3C APG keyboard navigation on tree container
+  // 6. Insert Markdown TOC toolbar action
+  insertTocBtn?.addEventListener('click', () => {
+    closeContextMenu();
+    requestInsertToc();
+  });
+
+  // 7. Delegated click, contextmenu & W3C APG keyboard navigation on tree container
   treeContainer?.addEventListener('click', handleTreeClick);
   treeContainer?.addEventListener('keydown', handleTreeKeyDown);
+  treeContainer?.addEventListener('contextmenu', handleTreeContextMenu as EventListener);
+  treeContainer?.addEventListener('scroll', () => closeContextMenu());
 
-  // 7. Request a lightweight diff sync when panel regains visibility/focus
+  // 8. Context menu delegation & dismissal
+  contextMenu?.addEventListener('click', handleContextMenuClick);
+  contextMenu?.addEventListener('keydown', handleContextMenuKeyDown as EventListener);
+  document.addEventListener('click', (event: Event) => {
+    const target = event.target as HTMLElement | null;
+    if (contextMenu && !contextMenu.hidden && !target?.closest?.('#outline-context-menu')) {
+      closeContextMenu();
+    }
+  });
+  window.addEventListener('blur', () => closeContextMenu());
+
+  // 9. Request a lightweight diff sync when panel regains visibility/focus
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible' && api?.postMessage) {
       void api.postMessage({ type: 'requestSync', force: false });
@@ -997,12 +1513,12 @@ function initEventHandlers(): void {
     }
   });
 
-  // 8. Push listener from plugin host (registered BEFORE sending 'ready')
+  // 10. Push listener from plugin host (registered BEFORE sending 'ready')
   if (api?.onMessage) {
     api.onMessage(handleIncomingMessage);
   }
 
-  // 9. Single initial ready handshake
+  // 11. Single initial ready handshake
   if (api?.postMessage) {
     void api.postMessage({ type: 'ready' });
   }

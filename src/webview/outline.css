@@ -16,6 +16,8 @@
   --nav-indent-guide: var(--joplin-divider-color, rgba(125, 125, 125, 0.2));
   --nav-indent-guide-hover: var(--joplin-color-faded, rgba(125, 125, 125, 0.5));
   --nav-scrollbar-thumb: var(--joplin-scrollbar-thumb-color, var(--nav-divider));
+  --nav-badge-bg: rgba(125, 125, 125, 0.14);
+  --nav-menu-bg: var(--joplin-background-color, var(--nav-surface));
 
   /* Native Joplin search highlight tokens */
   --nav-search-marker-bg: var(--joplin-search-marker-background-color, #f7d26e);
@@ -69,6 +71,7 @@
     --nav-item-background-active: color-mix(in srgb, var(--nav-accent) 12%, transparent);
     --nav-indent-guide: color-mix(in srgb, var(--joplin-divider-color, currentColor) 75%, transparent);
     --nav-indent-guide-hover: color-mix(in srgb, var(--nav-accent) 55%, transparent);
+    --nav-badge-bg: color-mix(in srgb, var(--nav-accent) 11%, transparent);
   }
 }
 
@@ -79,7 +82,7 @@ html, body {
   background-color: var(--nav-bg);
   color: var(--nav-item-color);
   font-family: var(--font-joplin);
-  font-size: var(--joplin-font-size, 13px);
+  font-size: var(--nav-font-size, var(--joplin-font-size, 13px));
   user-select: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -107,6 +110,7 @@ body[dir="rtl"], .outline-container[dir="rtl"] {
   overflow: hidden;
   box-sizing: border-box;
   position: relative;
+  font-size: var(--nav-font-size, var(--joplin-font-size, 13px));
 }
 
 .outline-status {
@@ -115,6 +119,17 @@ body[dir="rtl"], .outline-container[dir="rtl"] {
   color: var(--nav-color-faded);
   font-size: 0.96em;
   line-height: 1.5;
+}
+
+.outline-status-title {
+  color: var(--nav-item-color);
+  font-weight: 500;
+}
+
+.outline-status-sub {
+  margin-top: 6px;
+  font-size: 0.88em;
+  color: var(--nav-color-faded);
 }
 
 /* Header & Semantic Toolbar Controls */
@@ -168,7 +183,9 @@ body[dir="rtl"], .outline-container[dir="rtl"] {
 }
 
 .clickable-icon:focus-visible,
-.search-clear-btn:focus-visible {
+.search-clear-btn:focus-visible,
+.tree-item-copy-btn:focus-visible,
+.context-menu-item:focus-visible {
   outline: 2px solid var(--nav-focus-ring);
   outline-offset: 2px;
 }
@@ -277,6 +294,7 @@ body[dir="rtl"], .outline-container[dir="rtl"] {
 .tree-item-self {
   display: flex;
   align-items: center;
+  gap: 2px;
   padding: 3.5px 6px;
   margin: 1px 0;
   border-radius: 5px;
@@ -332,6 +350,71 @@ body[dir="rtl"], .outline-container[dir="rtl"] {
   font-weight: 600;
 }
 
+/* Collapsed Ancestor Containing Active Descendant */
+.tree-item.has-active-child > .tree-item-self:not(.is-active) {
+  border-inline-start: 2px solid var(--nav-accent);
+  border-start-start-radius: 1px;
+  border-end-start-radius: 1px;
+}
+
+/* Hierarchical Numbering & Level Pill Badges */
+.heading-number {
+  flex-shrink: 0;
+  margin-inline-end: 4px;
+  font-size: 0.86em;
+  font-variant-numeric: tabular-nums;
+  color: var(--nav-color-faded);
+  font-weight: 500;
+}
+
+.heading-level-badge {
+  flex-shrink: 0;
+  margin-inline-end: 4px;
+  padding: 0 4px;
+  border-radius: 3px;
+  font-size: 0.72em;
+  font-weight: 600;
+  line-height: 1.5;
+  letter-spacing: 0.02em;
+  color: var(--nav-accent);
+  background-color: var(--nav-badge-bg);
+}
+
+/* Quick-Copy Action Button on Hover / Focus */
+.tree-item-copy-btn {
+  appearance: none;
+  -webkit-appearance: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  margin-inline-start: 4px;
+  background: transparent;
+  color: var(--nav-color-faded);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  min-width: 22px;
+  min-height: 22px;
+  border-radius: 4px;
+  flex-shrink: 0;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.12s ease, color 0.12s ease, background-color 0.12s ease;
+}
+
+.tree-item-self:hover .tree-item-copy-btn,
+.tree-item-self:focus-within .tree-item-copy-btn,
+.tree-item-copy-btn:focus-visible {
+  opacity: 1;
+}
+
+.tree-item-copy-btn:hover {
+  color: var(--nav-accent);
+  background-color: var(--nav-item-background-active);
+}
+
 /* Chevron Icons - Compact on desktop, enlarged on touch/mobile */
 .collapse-icon {
   display: inline-flex;
@@ -341,7 +424,7 @@ body[dir="rtl"], .outline-container[dir="rtl"] {
   height: 22px;
   min-width: 22px;
   min-height: 22px;
-  margin-inline-end: 4px;
+  margin-inline-end: 2px;
   flex-shrink: 0;
   border-radius: 4px;
   color: var(--nav-color-faded);
@@ -392,42 +475,42 @@ body[dir="rtl"], .outline-container[dir="rtl"] {
    CASCADE-CORRECT TYPOGRAPHY ENGINE
    ======================================================== */
 
-/* 1. Auto Mode: Applied when NO manual override is active */
-.outline-container[dir="rtl"]:not([class*="override-"]) .tree-item-inner,
-.outline-container[dir="rtl"]:not([class*="override-"]) input,
-.outline-container[dir="rtl"]:not([class*="override-"]) .outline-status {
+/* 1. Auto Mode: Applied when NO manual override or custom font is active */
+.outline-container[dir="rtl"]:not([class*="override-"]):not(.has-custom-font) .tree-item-inner,
+.outline-container[dir="rtl"]:not([class*="override-"]):not(.has-custom-font) input,
+.outline-container[dir="rtl"]:not([class*="override-"]):not(.has-custom-font) .outline-status {
   font-family: var(--font-persian) !important;
 }
 
-.outline-container:not([class*="override-"]) .tree-item-self[data-script="persian"] .tree-item-inner {
+.outline-container:not([class*="override-"]):not(.has-custom-font) .tree-item-self[data-script="persian"] .tree-item-inner {
   font-family: var(--font-persian) !important;
 }
 
-.outline-container:not([class*="override-"]) .tree-item-self[data-script="arabic"] .tree-item-inner {
+.outline-container:not([class*="override-"]):not(.has-custom-font) .tree-item-self[data-script="arabic"] .tree-item-inner {
   font-family: var(--font-arabic) !important;
 }
 
-.outline-container:not([class*="override-"]) .tree-item-self[data-script="hebrew"] .tree-item-inner {
+.outline-container:not([class*="override-"]):not(.has-custom-font) .tree-item-self[data-script="hebrew"] .tree-item-inner {
   font-family: var(--font-hebrew) !important;
 }
 
-.outline-container:not([class*="override-"]) .tree-item-self[data-script="sc"] .tree-item-inner {
+.outline-container:not([class*="override-"]):not(.has-custom-font) .tree-item-self[data-script="sc"] .tree-item-inner {
   font-family: var(--font-cjk-sc) !important;
 }
 
-.outline-container:not([class*="override-"]) .tree-item-self[data-script="jp"] .tree-item-inner {
+.outline-container:not([class*="override-"]):not(.has-custom-font) .tree-item-self[data-script="jp"] .tree-item-inner {
   font-family: var(--font-cjk-jp) !important;
 }
 
-.outline-container:not([class*="override-"]) .tree-item-self[data-script="devanagari"] .tree-item-inner {
+.outline-container:not([class*="override-"]):not(.has-custom-font) .tree-item-self[data-script="devanagari"] .tree-item-inner {
   font-family: var(--font-devanagari) !important;
 }
 
-.outline-container:not([class*="override-"]) .tree-item-self[data-script="latin"] .tree-item-inner {
+.outline-container:not([class*="override-"]):not(.has-custom-font) .tree-item-self[data-script="latin"] .tree-item-inner {
   font-family: var(--font-joplin) !important;
 }
 
-/* 2. Manual User Preset Overrides (Takes total precedence when chosen in Joplin Settings) */
+/* 2. Manual User Preset Overrides */
 .outline-container.override-inter .tree-item-inner { font-family: var(--font-latin) !important; }
 .outline-container.override-roboto .tree-item-inner { font-family: var(--font-roboto) !important; }
 .outline-container.override-vazirmatn .tree-item-inner { font-family: var(--font-persian) !important; }
@@ -439,6 +522,11 @@ body[dir="rtl"], .outline-container[dir="rtl"] {
 .outline-container.override-lora .tree-item-inner { font-family: var(--font-lora) !important; }
 .outline-container.override-mono .tree-item-inner { font-family: var(--font-mono) !important; }
 .outline-container.override-system .tree-item-inner { font-family: var(--font-system) !important; }
+
+/* 3. Explicit Custom Font Family Override (Highest Priority) */
+.outline-container.has-custom-font .tree-item-inner {
+  font-family: var(--nav-custom-font, var(--font-joplin)) !important;
+}
 
 /* Text Wrap Mode */
 .outline-container.is-wrapped .tree-item-self {
@@ -453,7 +541,9 @@ body[dir="rtl"], .outline-container[dir="rtl"] {
   overflow-wrap: break-word;
 }
 
-.outline-container.is-wrapped .collapse-icon {
+.outline-container.is-wrapped .collapse-icon,
+.outline-container.is-wrapped .heading-level-badge,
+.outline-container.is-wrapped .heading-number {
   margin-top: 1px;
 }
 
@@ -480,6 +570,76 @@ mark.highlight-match,
   border-radius: 2px;
   padding: 0 2px;
   font-weight: 600;
+}
+
+/* ========================================================
+   ACCESSIBLE CONTEXT MENU & TOAST FEEDBACK
+   ======================================================== */
+.outline-context-menu {
+  position: fixed;
+  z-index: 60;
+  min-width: 190px;
+  max-width: calc(100vw - 16px);
+  padding: 4px;
+  border-radius: 7px;
+  border: 1px solid var(--nav-divider);
+  background: var(--nav-menu-bg);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
+  box-sizing: border-box;
+}
+
+.outline-context-menu[hidden] {
+  display: none;
+}
+
+.context-menu-item {
+  appearance: none;
+  -webkit-appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--nav-item-color);
+  font: inherit;
+  font-size: 0.92em;
+  width: 100%;
+  text-align: start;
+  padding: 7px 10px;
+  border-radius: 5px;
+  cursor: pointer;
+  display: block;
+  box-sizing: border-box;
+}
+
+.context-menu-item:hover,
+.context-menu-item:focus-visible {
+  background-color: var(--nav-item-background-hover);
+  color: var(--nav-accent);
+}
+
+.context-menu-separator {
+  height: 1px;
+  margin: 4px 6px;
+  background: var(--nav-divider);
+}
+
+.outline-toast {
+  position: fixed;
+  inset-inline: 10px;
+  bottom: calc(10px + env(safe-area-inset-bottom, 4px));
+  z-index: 50;
+  padding: 7px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--nav-accent);
+  background: var(--nav-menu-bg);
+  color: var(--nav-item-color);
+  font-size: 0.88em;
+  line-height: 1.4;
+  text-align: center;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+  pointer-events: none;
+}
+
+.outline-toast[hidden] {
+  display: none;
 }
 
 /* ========================================================
@@ -512,6 +672,14 @@ mark.highlight-match,
 .outline-container.is-mobile .tree-item-self {
   min-height: 44px;
   padding: 6px 8px;
+}
+
+.outline-container.is-mobile .tree-item-copy-btn {
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  min-height: 36px;
+  opacity: 0.72;
 }
 
 .outline-container.is-mobile .collapse-icon {
@@ -564,6 +732,14 @@ mark.highlight-match,
     padding: 6px 8px;
   }
 
+  .tree-item-copy-btn {
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+    min-height: 36px;
+    opacity: 0.72;
+  }
+
   .collapse-icon {
     width: 40px;
     height: 40px;
@@ -589,6 +765,7 @@ mark.highlight-match,
 @media (prefers-reduced-motion: reduce) {
   .clickable-icon,
   .tree-item-self,
+  .tree-item-copy-btn,
   .collapse-icon,
   .tree-item-children {
     transition: none;

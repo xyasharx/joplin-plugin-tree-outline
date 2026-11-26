@@ -1,23 +1,38 @@
 import { MarkupLanguage, type JoplinApi, type ViewHandle } from 'api/types';
 import { computeHeadingSignature, isTextRtl, parseNoteHeadings } from './parser';
-import type { NoteSelectionKind, OutlineUpdateMessage } from './webview/protocol';
+import type {
+  HeadingNode,
+  NoteSelectionKind,
+  OutlineUpdateMessage,
+} from './webview/protocol';
+
+export interface OutlineSnapshot {
+  noteId: string;
+  selectionKind: NoteSelectionKind;
+  selectedCount: number;
+  markupLanguage: number;
+  headings: HeadingNode[];
+}
 
 export interface OutlineSyncControllerOptions {
   joplinApi: Pick<JoplinApi, 'workspace' | 'data' | 'views'>;
   panel: ViewHandle;
   isMobile: boolean;
   debounceMs?: number;
+  onNoteChanged?: (noteId: string) => void;
 }
 
 export interface OutlineSyncController {
   syncNow: (options?: { force?: boolean }) => Promise<boolean>;
   scheduleSync: () => void;
   handleWebviewReady: () => Promise<boolean>;
+  getCurrentSnapshot: () => OutlineSnapshot;
   dispose: () => void;
 }
 
 interface LoadedNoteState {
   selectionKind: NoteSelectionKind;
+  selectedCount: number;
   noteId: string;
   title: string;
   body: string;
@@ -36,6 +51,7 @@ function sampleBodyForRtlDetection(body: string, markupLanguage: number): string
  * Push-based, event-driven outline synchronizer:
  * - Zero continuous polling (no idle SQLite Note.load calls).
  * - Fixes empty-note double DB fetch (`typeof note.body !== 'string'`).
+ * - Distinguishes empty states (0 notes selected vs N > 1 multiple notes selected).
  * - Diffs heading structure signatures so paragraph edits do not trigger DOM rebuilds,
  *   while same-length heading edits are always detected.
  * - Guards against async out-of-order race conditions via a monotonic version counter.
@@ -45,11 +61,15 @@ export function createOutlineSyncController({
   panel,
   isMobile,
   debounceMs = 200,
+  onNoteChanged,
 }: OutlineSyncControllerOptions): OutlineSyncController {
   let lastNoteId = '';
   let lastHeadingSignature = '';
   let lastIsRtl = false;
   let lastSelectionKind: NoteSelectionKind = 'none';
+  let lastSelectedCount = 0;
+  let lastMarkupLanguage: number = MarkupLanguage.Markdown;
+  let lastHeadings: HeadingNode[] = [];
   let hasPushedOnce = false;
   let syncVersion = 0;
   let debounceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -69,6 +89,7 @@ export function createOutlineSyncController({
           if (selectedIds.length === 0) {
             return {
               selectionKind: 'none',
+              selectedCount: 0,
               noteId: '',
               title: '',
               body: '',
@@ -78,6 +99,7 @@ export function createOutlineSyncController({
           if (selectedIds.length > 1) {
             return {
               selectionKind: 'multiple',
+              selectedCount: selectedIds.length,
               noteId: '',
               title: '',
               body: '',
@@ -91,6 +113,7 @@ export function createOutlineSyncController({
       if (!note || !note.id) {
         return {
           selectionKind: 'none',
+          selectedCount: 0,
           noteId: '',
           title: '',
           body: '',
@@ -125,6 +148,7 @@ export function createOutlineSyncController({
 
       return {
         selectionKind: 'single',
+        selectedCount: 1,
         noteId: note.id,
         title,
         body,
@@ -133,6 +157,7 @@ export function createOutlineSyncController({
     } catch {
       return {
         selectionKind: 'none',
+        selectedCount: 0,
         noteId: '',
         title: '',
         body: '',
@@ -167,7 +192,8 @@ export function createOutlineSyncController({
     const noteChanged =
       !hasPushedOnce ||
       state.noteId !== lastNoteId ||
-      state.selectionKind !== lastSelectionKind;
+      state.selectionKind !== lastSelectionKind ||
+      state.selectedCount !== lastSelectedCount;
 
     const structureChanged = signature !== lastHeadingSignature || isRtl !== lastIsRtl;
 
@@ -179,7 +205,14 @@ export function createOutlineSyncController({
     lastHeadingSignature = signature;
     lastIsRtl = isRtl;
     lastSelectionKind = state.selectionKind;
+    lastSelectedCount = state.selectedCount;
+    lastMarkupLanguage = state.markupLanguage;
+    lastHeadings = headings;
     hasPushedOnce = true;
+
+    if (noteChanged) {
+      onNoteChanged?.(state.noteId);
+    }
 
     const message: OutlineUpdateMessage = {
       type: 'outlineUpdate',
@@ -187,6 +220,7 @@ export function createOutlineSyncController({
       noteId: state.noteId,
       noteChanged,
       selectionKind: state.selectionKind,
+      selectedCount: state.selectedCount,
       markupLanguage: state.markupLanguage,
       headings,
       isRtl,
@@ -211,6 +245,14 @@ export function createOutlineSyncController({
 
   const handleWebviewReady = () => syncNow({ force: true });
 
+  const getCurrentSnapshot = (): OutlineSnapshot => ({
+    noteId: lastNoteId,
+    selectionKind: lastSelectionKind,
+    selectedCount: lastSelectedCount,
+    markupLanguage: lastMarkupLanguage,
+    headings: lastHeadings,
+  });
+
   const dispose = () => {
     clearPendingDebounce();
   };
@@ -219,6 +261,7 @@ export function createOutlineSyncController({
     syncNow,
     scheduleSync,
     handleWebviewReady,
+    getCurrentSnapshot,
     dispose,
   };
 }

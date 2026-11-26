@@ -490,10 +490,10 @@ describe('P1 #6: Native joplin.settings persistence, live onChange sync & Joplin
     assert.ok(host.valuesCallCount >= 1, 'Should use batch joplin.settings.values() when available');
 
     const initialPrefs = host.postedMessages.find((m) => m.type === 'preferencesUpdate');
-    assert.deepEqual(initialPrefs, {
-      type: 'preferencesUpdate',
-      preferences: { textWrapMode: 'wrapped', fontPreset: 'lora' },
-    });
+    assert.equal(initialPrefs?.preferences.textWrapMode, 'wrapped');
+    assert.equal(initialPrefs?.preferences.fontPreset, 'lora');
+    assert.equal(initialPrefs?.preferences.maxHeadingDepth, 6);
+    assert.equal(initialPrefs?.preferences.followActiveHeading, true);
 
     // Webview toggles wrap off -> host persists 'nowrap' via joplin.settings.setValue
     await host.sendFromWebview({ type: 'updatePreferences', textWrapMode: 'nowrap' });
@@ -503,10 +503,9 @@ describe('P1 #6: Native joplin.settings persistence, live onChange sync & Joplin
     host.postedMessages.length = 0;
     await host.simulateJoplinSettingChange({ fontPreset: 'mono', textWrapMode: 'auto' });
     assert.equal(host.postedMessages.length, 1);
-    assert.deepEqual(host.postedMessages[0], {
-      type: 'preferencesUpdate',
-      preferences: { textWrapMode: 'auto', fontPreset: 'mono' },
-    });
+    assert.equal(host.postedMessages[0].type, 'preferencesUpdate');
+    assert.equal(host.postedMessages[0].preferences.textWrapMode, 'auto');
+    assert.equal(host.postedMessages[0].preferences.fontPreset, 'mono');
 
     // Unrelated setting changes should NOT trigger redundant preferencesUpdate pushes
     host.postedMessages.length = 0;
@@ -527,7 +526,8 @@ describe('P1 #6: Native joplin.settings persistence, live onChange sync & Joplin
 
     await host.sendFromWebview({ type: 'ready' });
     const prefMsg = host.postedMessages.find((m) => m.type === 'preferencesUpdate');
-    assert.deepEqual(prefMsg?.preferences, { textWrapMode: 'nowrap', fontPreset: 'inter' });
+    assert.equal(prefMsg?.preferences.textWrapMode, 'nowrap');
+    assert.equal(prefMsg?.preferences.fontPreset, 'inter');
 
     await host.sendFromWebview({
       type: 'jumpToHeading',

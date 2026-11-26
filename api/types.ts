@@ -103,6 +103,10 @@ export interface SettingItem {
   section?: string;
   isEnum?: boolean;
   options?: Record<string | number, string>;
+  minimum?: number;
+  maximum?: number;
+  step?: number;
+  advanced?: boolean;
   storage?: SettingStorage;
 }
 
@@ -139,6 +143,11 @@ export interface MarkdownEditorContentScriptModule {
   assets?: () => any[];
 }
 
+export interface MarkdownItContentScriptModule {
+  plugin: (markdownIt: any, pluginOptions?: any) => void;
+  assets?: () => Array<{ name: string }>;
+}
+
 export interface JoplinApi {
   plugins: {
     register(script: { onStart?: () => Promise<void> }): Promise<void>;
@@ -146,6 +155,10 @@ export interface JoplinApi {
   commands: {
     register(command: Command): Promise<void>;
     execute(commandName: string, ...args: any[]): Promise<any>;
+  };
+  clipboard?: {
+    writeText(text: string): Promise<void>;
+    readText?(): Promise<string>;
   };
   contentScripts?: {
     register(type: ContentScriptType, id: string, scriptPath: string): Promise<void>;

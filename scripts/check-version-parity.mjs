@@ -7,6 +7,34 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '..');
 
 const SEMVER_RE = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
+const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+
+/** Official Joplin Plugin Store category allowlist (joplinapp.org/help/api/references/plugin_manifest/). */
+export const VALID_JOPLIN_CATEGORIES = new Set([
+  'appearance',
+  'developer tools',
+  'editor',
+  'files',
+  'integrations',
+  'personal knowledge management',
+  'productivity',
+  'search',
+  'tags',
+  'themes',
+  'viewer',
+]);
+
+function isValidPngFile(filePath) {
+  if (!fs.existsSync(filePath)) return false;
+  const fd = fs.openSync(filePath, 'r');
+  try {
+    const buf = Buffer.alloc(8);
+    const bytesRead = fs.readSync(fd, buf, 0, 8, 0);
+    return bytesRead === 8 && buf.equals(PNG_SIGNATURE);
+  } finally {
+    fs.closeSync(fd);
+  }
+}
 
 function parseTagArg(argv) {
   for (let i = 0; i < argv.length; i++) {
@@ -64,7 +92,52 @@ export function checkVersionParity({ rootDir = repoRoot, tag = null } = {}) {
     typeof manifest.repository_url === 'string' &&
     manifest.repository_url.includes('your-username')
   ) {
-    errors.push(`src/manifest.json repository_url still contains placeholder: ${manifest.repository_url}`);
+    errors.push(
+      `src/manifest.json repository_url still contains placeholder: ${manifest.repository_url}`,
+    );
+  }
+
+  if (Array.isArray(manifest.categories)) {
+    for (const cat of manifest.categories) {
+      if (!VALID_JOPLIN_CATEGORIES.has(cat)) {
+        errors.push(`src/manifest.json contains invalid Joplin Store category "${cat}".`);
+      }
+    }
+  }
+
+  if (manifest.icons && typeof manifest.icons === 'object') {
+    for (const [size, relPath] of Object.entries(manifest.icons)) {
+      if (typeof relPath !== 'string' || !relPath.toLowerCase().endsWith('.png')) {
+        errors.push(`src/manifest.json icons["${size}"] must reference a PNG file (got "${relPath}").`);
+      } else if (!isValidPngFile(path.join(rootDir, relPath))) {
+        errors.push(`src/manifest.json icons["${size}"] PNG asset is missing or invalid: ${relPath}`);
+      }
+    }
+  }
+
+  if (Array.isArray(manifest.screenshots)) {
+    for (let i = 0; i < manifest.screenshots.length; i++) {
+      const shot = manifest.screenshots[i];
+      if (!shot?.src || typeof shot.src !== 'string') {
+        errors.push(`src/manifest.json screenshots[${i}] is missing "src".`);
+        continue;
+      }
+      if (!shot.label || typeof shot.label !== 'string') {
+        errors.push(`src/manifest.json screenshots[${i}] is missing accessible "label".`);
+      }
+      if (!/^https?:\/\//i.test(shot.src) && !fs.existsSync(path.join(rootDir, shot.src))) {
+        errors.push(`src/manifest.json screenshots[${i}] file not found: ${shot.src}`);
+      }
+    }
+  }
+
+  if (manifest.promo_tile && typeof manifest.promo_tile === 'object') {
+    const src = manifest.promo_tile.src;
+    if (typeof src === 'string' && !/^https?:\/\//i.test(src)) {
+      if (!fs.existsSync(path.join(rootDir, src))) {
+        errors.push(`src/manifest.json promo_tile asset not found: ${src}`);
+      }
+    }
   }
 
   if (tag !== null) {

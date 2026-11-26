@@ -231,15 +231,20 @@ function createIntegrationHost({
 }
 
 describe('P0 #1: Navigation (RTE, CM6 content script, CM5 fallback, Mobile auto-dismiss)', () => {
-  it('registers CodeMirrorPlugin content script and autoDismissOnMobile setting on startup', async () => {
+  it('registers CodeMirrorPlugin + MarkdownItPlugin content scripts and autoDismissOnMobile setting on startup', async () => {
     const host = createIntegrationHost({ platform: 'desktop' });
     await host.startPlugin();
 
-    assert.equal(host.contentScripts.length, 1);
+    assert.equal(host.contentScripts.length, 2);
     assert.deepEqual(host.contentScripts[0], {
       type: 'codeMirrorPlugin',
       id: 'treeOutlineCodeMirrorScroller',
       scriptPath: './contentScripts/codeMirrorScroller.js',
+    });
+    assert.deepEqual(host.contentScripts[1], {
+      type: 'markdownItPlugin',
+      id: 'treeOutlineViewerScrollSpy',
+      scriptPath: './contentScripts/viewerScrollSpyPlugin.js',
     });
     assert.equal(host.settingValues.get('autoDismissOnMobile'), true);
   });
