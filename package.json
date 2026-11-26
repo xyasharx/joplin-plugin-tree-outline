@@ -5,6 +5,8 @@
   "main": "dist/index.js",
   "scripts": {
     "dist": "webpack",
+    "typecheck": "tsc --noEmit",
+    "test": "npm run dist && node --test tests/*.test.mjs",
     "prepare": "npm run dist"
   },
   "keywords": [

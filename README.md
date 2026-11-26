@@ -29,7 +29,7 @@ TreeOutline is an outline and table of contents panel for Joplin desktop and mob
 
 ### Manual Installation
 1. Download the latest `com.xyasharx.treeoutline.jpl` file from the [Releases](https://github.com/xyasharx/joplin-plugin-tree-outline/releases) page.
-2. In Joplin, go to **Tools > Options > Plugins**.
+2. In Joplin, go to **Tools > Options > Plugins** (macOS: **Joplin > Preferences > Plugins**).
 3. Click the gear icon (`⚙`) next to *Manage your plugins* and choose **Install from file**.
 4. Select the `.jpl` file and restart Joplin.
 
@@ -37,7 +37,13 @@ TreeOutline is an outline and table of contents panel for Joplin desktop and mob
 
 ## Usage
 
-- **Toggle Panel:** Toggle the outline view via **Tools > TreeOutline** or assign a custom shortcut under **Tools > Options > Keyboard Shortcuts**.
+- **Toggle Panel:** On desktop (macOS, Windows, and Linux), you can show or hide TreeOutline in any of the following ways:
+  - Click the **Toggle TreeOutline** button in the top-right note toolbar.
+  - Select **Tools > Toggle TreeOutline** from the menu bar.
+  - Open the Command Palette (`Ctrl+Shift+P` / macOS: `Cmd+Shift+P`) and run **Toggle TreeOutline**.
+  - Assign a custom keyboard shortcut under **Tools > Options > Keyboard Shortcuts** (macOS: **Joplin > Preferences > Keyboard Shortcuts**) by searching for `Toggle TreeOutline`.
+  - Your visibility choice is remembered automatically across restarts.
+- **Mobile:** Open or dismiss the outline from Joplin Mobile's built-in **Plugin panels** button.
 - **Rearrange Layout:** On desktop, use **View > Change application layout** to drag and dock the TreeOutline panel to the left sidebar, right sidebar, or alongside the note list.
 - **Search Headings:** Click the magnifying glass icon in the header to filter headings. Press `Escape` or clear the input to restore the full view.
 - **Collapse All:** Click the fold icon in the toolbar to collapse or expand all subheadings simultaneously.

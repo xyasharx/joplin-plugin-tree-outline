@@ -93,7 +93,8 @@ export function parseHeadings(markdown: string): HeadingNode[] {
       else if (/^-{2,}\s*$/.test(trimmed)) level = 2;
 
       if (level > 0) {
-        const text = cleanHeadingText(lines[i - 1]);
+        const rawText = lines[i - 1].trim();
+        const text = cleanHeadingText(rawText);
         if (text) {
           flatNodes.push({
             id: `heading-${i - 1}-${flatNodes.length}`,
